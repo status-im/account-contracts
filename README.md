@@ -9,6 +9,7 @@ Smart contracts defining self sovereign accounts.
 - Secret multisig recovery: A social recovery tool for secretly selecting other addresses and requesting some of them to recover the identity 
 - ERC20 approve and call: optimizes approve and call operations to avoid race conditions and gas waste.
 - Gas abstract: Management can execute calls paying with gas stored on the Identity or in the Management Key.
+- Serverless: Uses Whisper for gas market and Status API for Social Recovery.
 
 ### Usage
  ```

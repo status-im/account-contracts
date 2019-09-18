@@ -14,10 +14,10 @@ contract MultisigAccount is AccountGasAbstract {
         _;
     }
 
-    constructor(address[] _keys, uint256 _required) public {
+    constructor(address[] memory _keys, uint256 _required) public {
         available = _keys.length;
         required = _required;
-        for(uint i = 0; i < _keys; i++) {
+        for(uint i = 0; i < available; i++) {
             address key = _keys[i];
             require(isKey[key] == false, "Duplicated");
             isKey[key] = true;
@@ -26,7 +26,7 @@ contract MultisigAccount is AccountGasAbstract {
 
     function execute(address _to, uint256 _value, bytes calldata _data, bytes calldata _signature) external {
         require(isValidSignature(abi.encodePacked(address(this),nonce,_to,_value,_data),_signature) == MAGICVALUE, ERR_BAD_SIGNER);
-        _execute(_to, _value, _data);
+        _call(_to, _value, _data);
     }
 
     function setKey(address key, bool isValid) external self {
@@ -58,7 +58,7 @@ contract MultisigAccount is AccountGasAbstract {
         uint8 v;
         bytes32 r;
         bytes32 s;
-        bytes32 dataHash = ECDSA.toERC191SignedMessage(0x00, _data);
+        bytes32 dataHash = ECDSA.toERC191SignedMessage(byte(0x00), _data);
         for (uint256 i = 0; i < _amountSignatures; i++) {
             /* solium-disable-next-line security/no-inline-assembly*/
             assembly {

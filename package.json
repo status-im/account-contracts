@@ -1,5 +1,5 @@
 {
-  "name": "status-contracts",
+  "name": "account-contracts",
   "version": "0.0.1",
   "description": "",
   "scripts": {
@@ -13,14 +13,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/status-im/contracts.git"
+    "url": "git+https://github.com/status-im/account-contracts.git"
   },
   "author": "Status Research & Development GMBH",
   "license": "CC0-1.0",
   "bugs": {
-    "url": "https://github.com/status-im/contracts/issues"
+    "url": "https://github.com/status-im/account-contracts/issues"
   },
-  "homepage": "https://github.com/status-im/contracts#readme",
+  "homepage": "https://github.com/status-im/account-contracts#readme",
   "devDependencies": {
     "embark": "^4.0.2",
     "embarkjs-connector-web3": "^4.0.0",

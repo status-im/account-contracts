@@ -211,12 +211,11 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay, ERC1077 {
             _call(_to, _value,_data);
         } else if(_operationType == OperationType.APPROVEANDCALL){
             _approveAndCall(_gasToken, _to, _value, _data);
-        } else if(_operationType == OperationType.DELEGATECALL){
-            nonce++;
-            _to.delegatecall(_data);
         } else if(_operationType == OperationType.CREATE){
             _create(_value, _data);
-        }
+        } else {
+            revert("Not implemented");
+        } 
     }
 
     function canExecute(

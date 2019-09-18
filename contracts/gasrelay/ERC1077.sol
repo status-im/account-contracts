@@ -2,8 +2,7 @@ pragma solidity >=0.5.0 <0.6.0;
 
 
 contract ERC1077 {
-    enum OperationType {CALL, DELEGATECALL, CREATE}
-
+    enum OperationType {CALL, DELEGATECALL, CREATE, APPROVEANDCALL}
     event ExecutedSigned(bytes32 indexed messageHash, uint indexed nonce, bool indexed success);
 
     function canExecute(

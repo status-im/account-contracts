@@ -1,7 +1,9 @@
 pragma solidity >=0.5.0 <0.6.0;
 
 import "./ERC1271.sol";
+
 import "../gasrelay/GasRelay.sol";
+import "../gasrelay/ERC1077.sol";
 import "./Account.sol";
 
 
@@ -10,9 +12,7 @@ import "./Account.sol";
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  * @notice defines account gas abstract
  */
-contract AccountGasAbstract is Account, ERC1271, GasRelay {
-
-    enum OperationType {CALL, DELEGATECALL, CREATE, APPROVEANDCALL}
+contract AccountGasAbstract is Account, ERC1271, GasRelay, ERC1077 {
 
     modifier gasRelay(
         bytes memory _execData,

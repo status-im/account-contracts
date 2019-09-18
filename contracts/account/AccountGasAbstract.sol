@@ -61,9 +61,9 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay {
      * @param _to destination of call
      * @param _value call value (ether)
      * @param _data call data
-     * @param _gasPrice price in SNT paid back to msg.sender for each gas unit used
+     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
-     * @param _gasToken token being used for paying `_gasRelayer` (or msg.sender if relayer is 0)
+     * @param _gasToken token being used for paying `msg.sender`
      * @param _signature rsv concatenated ethereum signed message signatures required
      */
     function callGasRelay(
@@ -78,6 +78,7 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay {
         external
         gasRelay(
             abi.encodePacked(
+                MSG_CALL_GASRELAY_PREFIX,
                 _to,
                 _value,
                 _data,
@@ -100,7 +101,7 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay {
      *         allows identity of being controlled without requiring ether in key balace
      * @param _value call value (ether) to be sent to newly created contract
      * @param _data contract code data
-     * @param _gasPrice price in SNT paid back to msg.sender for each gas unit used
+     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `msg.sender`
      * @param _signature rsv concatenated ethereum signed message signatures required
@@ -116,6 +117,7 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay {
         external
         gasRelay(
             abi.encodePacked(
+                MSG_DEPLOY_GASRELAY_PREFIX,
                 _value,
                 _data,
                 nonce,
@@ -140,7 +142,7 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay {
      * @param _to destination of call
      * @param _value call value (in `_baseToken`)
      * @param _data call data
-     * @param _gasPrice price in SNT paid back to msg.sender for each gas unit used
+     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _signature rsv concatenated ethereum signed message signatures required
      */
@@ -156,6 +158,7 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay {
         external
         gasRelay(
             abi.encodePacked(
+                MSG_APPROVEANDCALL_GASRELAY_PREFIX,
                 _baseToken,
                 _to,
                 _value,

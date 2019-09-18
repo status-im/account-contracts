@@ -1,5 +1,6 @@
 # Account contracts
 Smart contracts defining self sovereign accounts.  
+WIP, currently only a PoC in Solidity.
 
 ## Features
 

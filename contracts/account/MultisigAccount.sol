@@ -5,6 +5,11 @@ import "../cryptography/ECDSA.sol";
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  */
 contract MultisigAccount is AccountGasAbstract {
+
+    bytes4 internal constant MSG_EXECUTE_PREFIX = bytes4(
+        keccak256("execute(uint256,address,uint256,bytes)")
+    );
+
     uint256 available = 0;
     uint256 required = 0;
     mapping(address => bool) isKey;
@@ -25,11 +30,25 @@ contract MultisigAccount is AccountGasAbstract {
     }
 
     function execute(address _to, uint256 _value, bytes calldata _data, bytes calldata _signature) external {
-        require(isValidSignature(abi.encodePacked(address(this),nonce,_to,_value,_data),_signature) == MAGICVALUE, ERR_BAD_SIGNER);
+        require(
+            isValidSignature(
+                abi.encodePacked(
+                    address(this),
+                    MSG_EXECUTE_PREFIX,
+                    nonce,
+                    _to,
+                    _value,
+                    _data
+                ),
+                _signature
+            ) == MAGICVALUE,
+            ERR_BAD_SIGNER
+        );
         _call(_to, _value, _data);
     }
 
     function setKey(address key, bool isValid) external self {
+        require(key != address(0), "Invalid address");
         require(isKey[key] != isValid, "Already set");
         isKey[key] = isValid;
         isValid ? available++ : available--;

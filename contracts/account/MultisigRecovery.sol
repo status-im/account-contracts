@@ -100,24 +100,16 @@ contract MultisigRecovery {
     }
 
     /**
-     * @notice Withdraw Ether
+     * @notice This method can be used to extract mistakenly
+     *  sent tokens to this contract.
+     * @param _token The address of the token contract that you want to recover
+     *  set to 0 in case you want to extract ether.
      */
-    function withdraw()
+    function claimTokens(address _token)
         external
         identityOnly
     {
-        identity.transfer(address(this).balance);
-    }
-
-    /**
-     * @notice Withdraw ERC20
-     */
-    function withdrawERC20(ERC20Token _token)
-        external
-        identityOnly
-    {
-        uint256 balance = _token.balanceOf(address(this));
-        _token.transfer(address(identity), balance);
+        withdrawBalance(_token, identity);
     }
 
     /**

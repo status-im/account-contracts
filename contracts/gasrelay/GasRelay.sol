@@ -35,7 +35,7 @@ contract GasRelay {
      * @param _to destination of call
      * @param _value call value (ether)
      * @param _data call data
-     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
+     * @param _gasPrice price in `_gasToken` paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `msg.sender`
      * @param _signature rsv concatenated ethereum signed message signatures required
@@ -56,7 +56,7 @@ contract GasRelay {
      *         allows account of being controlled without requiring ether in key balace
      * @param _value call value (ether) to be sent to newly created contract
      * @param _data contract code data
-     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
+     * @param _gasPrice price in `_gasToken` paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `msg.sender`
      * @param _signature rsv concatenated ethereum signed message signatures required
@@ -80,7 +80,7 @@ contract GasRelay {
      * @param _to destination of call
      * @param _value call value (in `_baseToken`)
      * @param _data call data
-     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
+     * @param _gasPrice price in `_gasToken` paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _signature rsv concatenated ethereum signed message signatures required
      */
@@ -102,7 +102,7 @@ contract GasRelay {
      * @param _data call data
      * @param _nonce current account nonce
      * @param _gasRelayer beneficiary of gas refund
-     * @param _gasPrice price in SNT paid back to `_gasRelayer` per gas unit used
+     * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `_gasRelayer`
      * @return callGasRelayHash the hash to be signed by wallet
@@ -145,7 +145,7 @@ contract GasRelay {
      * @param _data contract data
      * @param _nonce current account nonce
      * @param _gasRelayer beneficiary of gas refund
-     * @param _gasPrice price in SNT paid back to `_gasRelayer` per gas unit used
+     * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `_gasRelayer`
      * @return deployGasRelayHash the hash to be signed by wallet
@@ -186,7 +186,7 @@ contract GasRelay {
      * @param _data call data
      * @param _nonce current account nonce
      * @param _gasRelayer beneficiary of gas refund
-     * @param _gasPrice price in SNT paid back to `_gasRelayer` per gas unit used
+     * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
      * @param _gasLimit maximum gas of this transaction
      * @return approveAndCallHash the hash to be signed by wallet
      */
@@ -224,7 +224,7 @@ contract GasRelay {
     /**
      * @notice check gas limit and pays gas to relayer
      * @param _startGas gasleft on call start
-     * @param _gasPrice price in SNT paid back to `_gasRelayer` per gas unit used
+     * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `_gasRelayer`
      * @param _gasRelayer beneficiary of the payout

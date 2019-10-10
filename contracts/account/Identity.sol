@@ -1,6 +1,6 @@
 pragma solidity >=0.5.0 <0.6.0;
 
-import "./AccountGasAbstract.sol";;
+import "./AccountGasAbstract.sol";
 import "./ERC725.sol";
 
 /**
@@ -90,12 +90,12 @@ contract Identity is AccountGasAbstract, ERC725 {
         actors.length--;
     }
 
-    function changeOwner(ERC1271 newOwner)
+    function changeOwner(address newOwner)
         external
         management
     {
         require(address(newOwner) != address(0), "Bad parameter");
-        owner = newOwner;
+        owner = ERC1271(newOwner);
     }
 
     function execute(

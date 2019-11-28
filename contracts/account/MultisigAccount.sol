@@ -7,9 +7,9 @@ import "../cryptography/ECDSA.sol";
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  */
 contract MultisigAccount is Account {
-
+    string internal constant ERR_BAD_SIGNER = "Bad signer";
     bytes4 internal constant MSG_EXECUTE_PREFIX = bytes4(
-        keccak256("execute(uint256,address,uint256,bytes)")
+        keccak256("execute(uint256,address,uint256)")
     );
 
     uint256 available = 0;
@@ -70,9 +70,10 @@ contract MultisigAccount is Account {
         view
         returns (bytes4 magicValue)
     {
+        magicValue = 0xffffffff;
         uint _amountSignatures = _signature.length / 65;
         if(_amountSignatures != required) {
-            return 0xffffffff;
+            return magicValue;
         }
 
         address lastSigner = address(0);
@@ -90,7 +91,7 @@ contract MultisigAccount is Account {
             }
             address signer = ecrecover(dataHash, v, r, s);
             if (signer < lastSigner || !isKey[signer] ) {
-                return 0xffffffff;
+                return magicValue;
             }
 
             lastSigner = signer;

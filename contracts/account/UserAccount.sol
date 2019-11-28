@@ -17,7 +17,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     mapping(bytes32 => bytes) store;
 
     address public owner;
-    address public recoveryContract;
+    address public recovery;
     bool public actorsEnabled;
     address[] public actors;
     mapping(address => bool) public isActor;
@@ -45,19 +45,19 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     }
 
     /**
-     * @notice Defines recoveryContract address. Can only be called by owner when no recovery is set, or by recovery.
-     * @param _recovery address of recoveryContract contract
+     * @notice Defines recovery address. Can only be called by owner when no recovery is set, or by recovery.
+     * @param _recovery address of recovery contract
      */
     function setRecovery(address _recovery)
         external
     {
         require(
             (
-                msg.sender == owner && recoveryContract == address(0)
-            ) || msg.sender == recoveryContract,
+                msg.sender == owner && recovery == address(0)
+            ) || msg.sender == recovery,
             ERR_UNAUTHORIZED
         );
-        recoveryContract = _recovery;
+        recovery = _recovery;
     }
 
     /**
@@ -67,7 +67,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     function recoverAccount(address newOwner)
         external
     {
-        require(recoveryContract == msg.sender, ERR_UNAUTHORIZED);
+        require(recovery == msg.sender, ERR_UNAUTHORIZED);
         require(newOwner != address(0), ERR_BAD_PARAMETER);
         owner = newOwner;
         actorsEnabled = false;

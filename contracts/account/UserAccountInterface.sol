@@ -84,7 +84,7 @@ contract UserAccountInterface is ERC725, Signer {
      */
     function create(
         uint256 _value,
-        bytes calldata _data
+        bytes calldata _code
     )
         external
         returns(address createdContract);
@@ -98,7 +98,7 @@ contract UserAccountInterface is ERC725, Signer {
      */
     function create2(
         uint256 _value,
-        bytes calldata _data,
+        bytes calldata _code,
         bytes32 _salt
     )
         external

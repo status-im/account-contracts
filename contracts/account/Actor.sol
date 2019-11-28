@@ -45,7 +45,7 @@ interface Actor {
      */
     function create(
         uint256 _value,
-        bytes calldata _data
+        bytes calldata _code
     )
         external
         returns(address createdContract);

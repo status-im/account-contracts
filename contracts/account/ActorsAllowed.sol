@@ -14,6 +14,7 @@ contract ActorsAllowed is Actor, Controlled {
 
     modifier onlyActors {
         require(isActor[msg.sender], "Unauthorized");
+        _;
     }
     /**
      * @notice Adds a new actor that could arbitrarely call external contracts. If specific permission logic (e.g. ACL), it can be implemented in the actor's address contract logic.
@@ -94,13 +95,13 @@ contract ActorsAllowed is Actor, Controlled {
      */
     function create(
         uint256 _value,
-        bytes calldata _data
+        bytes calldata _code
     )
         external
         onlyActors
         returns(address createdContract)
     {
-        (success, returndata) = UserAccountInterface(controller).create(_value, _data);
+        createdContract = UserAccountInterface(controller).create(_value, _code);
     }
 
 }

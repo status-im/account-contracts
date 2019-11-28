@@ -71,7 +71,7 @@ contract PaymentNetworkActor is Controlled {
         nonce++;
 
         //calls identity to execute approval of token withdraw by payment network
-        actor.call(address(_token), 0, abi.encodeWithSelector(ERC20Token.approve.selector, paymentNetwork, _value));
+        actor.call(address(_token), 0, abi.encodeWithSelector(_token.approve.selector, paymentNetwork, _value));
 
         //calls payment network to process payment
         paymentNetwork.process(_token, controller, _to, _value);

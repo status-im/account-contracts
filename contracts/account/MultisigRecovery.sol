@@ -3,17 +3,18 @@ pragma solidity >=0.5.0 <0.6.0;
 import "../cryptography/MerkleProof.sol";
 import "../cryptography/ECDSA.sol";
 import "../token/ERC20Token.sol";
+import "../common/TokenClaimer.sol";
 
 /**
  * @notice Select privately other accounts that will allow the execution of actions
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  */
-contract MultisigRecovery {
+contract MultisigRecovery is TokenClaimer {
 
     /**
      * Controller of Recovery
      */
-    address private identity;
+    address payable public identity;
 
     /** # User Secret Data Hash
      * Hash of Semi-private information, such as a "randomly ordered personal information + secret answer", or a hash of user biometric data.
@@ -27,13 +28,13 @@ contract MultisigRecovery {
      */
     bytes32 public userDataHash;
 
-    /** # Secret Theshold Hash
+    /** # Secret Threshold Hash
      * A hash of threshold (number of allowances needed to execute) hashed together with the "User Secret Data Hash"
      * Example: `keccak256(userDataHash, threshold)`
-     * Theshold number is revealed in execute, together with the "Secret User Data Hash" and its verified against what is configured in contract.
+     * Threshold number is revealed in execute, together with the "Secret User Data Hash" and its verified against what is configured in contract.
      * Threshold can be easily figured out if the Secret User Data Hash is known.
      */
-    bytes32 public secretThesholdHash;
+    bytes32 public secretThresholdHash;
 
     /** # Secret Addresses Merkle Root
      * Each address is hashed against a hash of "User Secret Data Hash" (`kecakk256(keccak256(userDataHash), friendAddress)` and a merkle tree is build in top of the dataset.
@@ -56,7 +57,7 @@ contract MultisigRecovery {
     struct NewRecovery {
         uint256 timestamp;
         bytes32 userDataHash;
-        bytes32 secretThesholdHash;
+        bytes32 secretThresholdHash;
         bytes32 friendsMerkleRoot;
         uint256 setupDelay;
     }
@@ -67,11 +68,11 @@ contract MultisigRecovery {
     event Execution(bool success);
 
     modifier identityOnly() {
-        require(msg.sender == identity);
+        require(msg.sender == identity, "Unauthorized");
         _;
     }
     modifier notRevealed(bytes32 secretHash) {
-        require(!revealed[secretHash]);
+        require(!revealed[secretHash], "Already revealed");
         _;
     }
 
@@ -84,7 +85,7 @@ contract MultisigRecovery {
      * @param _setupDelay Delay for changes being active
      **/
     constructor(
-        address _identity,
+        address payable _identity,
         bytes32 _secretThresholdHash,
         bytes32 _userDataHash,
         bytes32 _friendsMerkleRoot,
@@ -93,7 +94,7 @@ contract MultisigRecovery {
         public
     {
         identity = _identity;
-        secretThesholdHash = _secretThresholdHash;
+        secretThresholdHash = _secretThresholdHash;
         userDataHash = _userDataHash;
         friendsMerkleRoot = _friendsMerkleRoot;
         setupDelay = _setupDelay;
@@ -143,7 +144,7 @@ contract MultisigRecovery {
         pendingSetup.timestamp = block.timestamp;
         pendingSetup.userDataHash = _userDataHash;
         pendingSetup.friendsMerkleRoot = _friendsMerkleRoot;
-        pendingSetup.secretThesholdHash = _secretThresholdHash;
+        pendingSetup.secretThresholdHash = _secretThresholdHash;
         pendingSetup.setupDelay = _setupDelay;
         emit SetupRequested(block.timestamp + setupDelay);
     }
@@ -154,9 +155,9 @@ contract MultisigRecovery {
     function activate()
         external
     {
-        require(pendingSetup.timestamp > 0);
-        require(pendingSetup.timestamp + setupDelay <= block.timestamp);
-        secretThesholdHash = pendingSetup.secretThesholdHash;
+        require(pendingSetup.timestamp > 0, "No pending setup");
+        require(pendingSetup.timestamp + setupDelay <= block.timestamp, "Waiting delay");
+        secretThresholdHash = pendingSetup.secretThresholdHash;
         setupDelay = pendingSetup.setupDelay;
         userDataHash = pendingSetup.userDataHash;
         friendsMerkleRoot = pendingSetup.friendsMerkleRoot;
@@ -167,92 +168,88 @@ contract MultisigRecovery {
     /**
      * @notice Approves a recovery.
      * This method is important for when the address is an contract (such as Identity).
-     * @param _secretCall Hash of the transaction
+     * @param _secretCall Hash of the recovery call
+     * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
      */
-    function approve(bytes32 _secretCall, bytes32 _secretHash, bytes32[] _proof)
+    function approve(bytes32 _secretCall, bytes32[] calldata _proof)
         external
     {
-        require(MerkleProof.verifyProof(_proof, friendsMerkleRoot, keccak256(msg.sender, _secretHash)));
-        require(!signed[_secretCall][msg.sender]);
+        require(MerkleProof.verify(_proof, friendsMerkleRoot, keccak256(abi.encodePacked(userDataHash, msg.sender))), "Invalid proof");
+        require(!signed[_secretCall][msg.sender], "Already approved");
         signed[_secretCall][msg.sender] = true;
         emit Approved(_secretCall, msg.sender);
     }
 
     /**
      * @notice Approve a recovery using an ethereum signed message
-     * @param _secretCall Hash of the transaction
-     * @param _v signatures v
-     * @param _r signatures r
-     * @param _s signatures s
+     * @param _secretCall Hash of the recovery call
+     * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
+     * @param _signature ERC191 signature
      */
-    function approvePreSigned(bytes32 _secretCall, bytes32 _secretHash, uint8 _v, bytes32 _r, bytes32 _s, bytes32[] _proof)
+    function approvePreSigned(bytes32 _secretCall, bytes32[] calldata _proof, bytes calldata _signature)
         external
     {
-        uint256 len = _v.length;
-        require (_r.length == len);
-        require (_s.length == len);
-        require (_v.length == len);
-        bytes32 signatureHash = ECDSA.toERC191SignedMessage(0x00,abi.encodePacked(address(identity), _secretCall));
-
-        address signer = ecrecover(signatureHash, _v[i], _r[i], _s[i]);
-        require(MerkleProof.verifyProof(_proof, friendsMerkleRoot, keccak256(signer, _secretHash)));
-        require(!signed[_secretCall][signer]);
-        require(signer != address(0));
+        bytes32 signatureHash = ECDSA.toERC191SignedMessage(abi.encodePacked(address(identity), userDataHash, _secretCall));
+        address signer = ECDSA.recover(signatureHash, _signature);
+        require(MerkleProof.verify(_proof, friendsMerkleRoot, keccak256(abi.encodePacked(userDataHash, signer))), "Invalid proof");
+        require(signer != address(0), "Invalid signature");
+        require(!signed[_secretCall][signer], "Already approved");
         signed[_secretCall][signer] = true;
         emit Approved(_secretCall, signer);
-
     }
 
     /**
      * @notice executes an approved transaction revaling userDataHash hash, friends addresses and set new recovery parameters
      * @param _revealedSecret Single hash of User Secret
-     * @param _threshold Revealed secretThesholdHash
      * @param _dest Address will be called
      * @param _data Data to be sent
      * @param _friendList friends addresses that approved
-     * @param _userDataHash new recovery double hashed user userDataHash
-     * @param _newFriendsHashes new friends list hashed with new recovery userDataHash hash
-     * @param _newSecretThreshld Threshold using the new userDataHash
+     * @param _newUserDataHash new recovery double hashed user userDataHash
+     * @param _newFriendsMerkleRoot new friends list hashed with new recovery userDataHash hash
+     * @param _newSecretThreshold Threshold using the new userDataHash
      */
     function execute(
         bytes32 _revealedSecret,
-        uint256 _threshold,
         address _dest,
-        bytes _data,
-        address[] _friendList,
-        bytes32 _userDataHash,
+        bytes calldata _data,
+        address[] calldata _friendList,
+        bytes32 _newUserDataHash,
         bytes32 _newFriendsMerkleRoot,
-        bytes32 _newSecretTheshold
-        )
+        bytes32 _newSecretThreshold
+    )
         external
-        notRevealed(_userDataHash)
+        notRevealed(_newUserDataHash)
     {
-        require(secretThesholdHash == keccak256(_revealedSecret, _threshold));
-        require(_friendList.length >= _threshold);
-        require(keccak256(identity, keccak256(_revealedSecret)) == userDataHash);
-        revealed[_userDataHash] = true;
-        bytes32 _secretHash = keccak256(
-            identity,
-            _revealedSecret,
-            _dest,
-            _data,
-            _userDataHash,
-            _newSecretTheshold,
-            _newFriendsMerkleRoot
+        uint256 _threshold = _friendList.length;
+        bytes32 secretHash = keccak256(abi.encodePacked(_revealedSecret));
+        require(userDataHash == keccak256(abi.encodePacked(secretHash, identity)), "Invalid secret");
+        require(secretThresholdHash == keccak256(abi.encodePacked(_revealedSecret, _threshold)), "Invalid threshold");
+        revealed[userDataHash] = true;
+
+        bytes32 callHash = keccak256(
+            abi.encodePacked(
+                identity,
+                secretHash,
+                _dest,
+                _data,
+                _newUserDataHash,
+                _newSecretThreshold,
+                _newFriendsMerkleRoot
+            )
         );
 
         for (uint256 i = 0; i < _threshold; i++) {
             address friend = _friendList[i];
-            require(friend != address(0));
-            require(signed[_secretHash][friend]);
-            delete signed[_secretHash][friend];
+            require(friend != address(0) && signed[callHash][friend], "Invalid signer");
+            delete signed[callHash][friend];
         }
 
-        userDataHash = _userDataHash;
-        secretThesholdHash = _newSecretTheshold;
+        userDataHash = _newUserDataHash;
+        secretThresholdHash = _newSecretThreshold;
         friendsMerkleRoot = _newFriendsMerkleRoot;
-
-        emit Execution(_dest.call(_data));
+        bool success;
+        (success, ) = _dest.call(_data);
+        emit Execution(success);
     }
 
 

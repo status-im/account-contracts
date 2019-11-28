@@ -2,10 +2,12 @@ pragma solidity >=0.5.0 <0.6.0;
 
 import "../gasrelay/GasRelay.sol";
 import "./Actor.sol";
+import "./Signer.sol";
 import "../common/Controlled.sol";
+import "../cryptography/ECDSA.sol";
 
 
-contract GasAbstractActor is Controlled, GasRelay {
+contract GasAbstractActor is Controlled, Signer, GasRelay {
     Actor public actor;
     uint256 public nonce;
 
@@ -95,7 +97,7 @@ contract GasAbstractActor is Controlled, GasRelay {
      * @notice deploys contract in return of gas proportional amount multiplied by `_gasPrice` of `_gasToken`
      *         allows identity of being controlled without requiring ether in key balace
      * @param _value call value (ether) to be sent to newly created contract
-     * @param _data contract code data
+     * @param _code contract code data
      * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `msg.sender`
@@ -103,7 +105,7 @@ contract GasAbstractActor is Controlled, GasRelay {
      */
     function deployGasRelay(
         uint256 _value,
-        bytes calldata _data,
+        bytes calldata _code,
         uint _gasPrice,
         uint _gasLimit,
         address _gasToken,
@@ -114,7 +116,7 @@ contract GasAbstractActor is Controlled, GasRelay {
             abi.encodePacked(
                 MSG_DEPLOY_GASRELAY_PREFIX,
                 _value,
-                _data,
+                _code,
                 nonce,
                 msg.sender
             ),
@@ -125,7 +127,7 @@ contract GasAbstractActor is Controlled, GasRelay {
             _signature
         )
     {
-        actor.create(_value, _data);
+        actor.create.gas(_gasLimit)(_value, _code);
     }
 
     /**
@@ -168,7 +170,7 @@ contract GasAbstractActor is Controlled, GasRelay {
             _signature
         )
     {
-        actor.approveAndCall(_baseToken, _to, _value, _data, _gasLimit);
+        actor.approveAndCall.gas(_gasLimit)(_baseToken, _to, _value, _data);
     }
 
     /**
@@ -185,9 +187,9 @@ contract GasAbstractActor is Controlled, GasRelay {
         returns (bytes4 magic1Value)
     {
         if(isContract(controller)){
-            return ERC1271(controller).isValidSignature(_data, _signature);
+            return Signer(controller).isValidSignature(_data, _signature);
         } else {
-            return controller == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature);
+            return controller == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature) ? MAGICVALUE : bytes4(0xFFFFFFFF);
         }
     }
 
@@ -215,8 +217,19 @@ contract GasAbstractActor is Controlled, GasRelay {
             if (_gasToken == address(0)) {
                 actor.call(_gasRelayer, _amount, new bytes(0));
             } else {
-                actor.call(_gasToken, 0, abi.encodeWithSelector(ERC20Token.transfer.selector, _gasRelayer, _value));
+                actor.call(_gasToken, 0, abi.encodeWithSelector(ERC20Token(_gasToken).transfer.selector, _gasRelayer, _amount));
             }
+        }
+    }
+
+    /**
+     * @dev Internal function to determine if an address is a contract
+     * @param _target The address being queried
+     * @return True if `_addr` is a contract
+     */
+    function isContract(address _target) internal view returns(bool result) {
+        assembly {
+            result := gt(extcodesize(_target), 0)
         }
     }
 }

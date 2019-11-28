@@ -180,13 +180,13 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
      */
     function create(
         uint256 _value,
-        bytes calldata _data
+        bytes calldata _code
     )
         external
         authorizedAction(address(0))
         returns(address createdContract)
     {
-        (createdContract) = _create(_value, _data);
+        (createdContract) = _create(_value, _code);
         require(isContract(createdContract), ERR_CREATE_FAILED);
     }
 
@@ -199,14 +199,14 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
      */
     function create2(
         uint256 _value,
-        bytes calldata _data,
+        bytes calldata _code,
         bytes32 _salt
     )
         external
         authorizedAction(address(0))
         returns(address createdContract)
     {
-        (createdContract) = _create2(_value, _data, _salt);
+        (createdContract) = _create2(_value, _code, _salt);
         require(isContract(createdContract), ERR_CREATE_FAILED);
     }
 
@@ -237,9 +237,9 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         returns (bytes4 magicValue)
     {
         if(isContract(owner)){
-            return ERC1271(owner).isValidSignature(_data, _signature);
+            return Signer(owner).isValidSignature(_data, _signature);
         } else {
-            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature) ? MAGICVALUE : 0xFFFFFFFF;
+            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature) ? MAGICVALUE : bytes4(0xffffffff);
         }
     }
 }

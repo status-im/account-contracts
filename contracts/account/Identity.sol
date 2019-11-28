@@ -10,8 +10,6 @@ import "./ERC725.sol";
 contract Identity is AccountGasAbstract, ERC725 {
     string internal constant ERR_BAD_PARAMETER = "Bad parameter";
     string internal constant ERR_UNAUTHORIZED = "Unauthorized";
-    uint256 constant OPERATION_CALL = 0;
-    uint256 constant OPERATION_CREATE = 1;
     mapping(bytes32 => bytes) store;
 
     ERC1271 public owner;
@@ -98,23 +96,16 @@ contract Identity is AccountGasAbstract, ERC725 {
         owner = ERC1271(newOwner);
     }
 
-    function execute(
-        uint256 _operationType,
+    function call(
         address _to,
         uint256 _value,
         bytes calldata _data
     )
         external
         authorizedAction(_to)
+        returns(bool, bytes memory)
     {
-        if (_operationType == OPERATION_CALL) {
-            _call(_to, _value, _data);
-        } else if (_operationType == OPERATION_CREATE) {
-            require(_to == address(0), ERR_BAD_PARAMETER);
-            _create(_value, _data);
-        } else {
-            revert("Unsupported");
-        }
+        _call(_to, _value, _data);
     }
 
     function approveAndCall(
@@ -125,8 +116,32 @@ contract Identity is AccountGasAbstract, ERC725 {
     )
         external
         authorizedAction(_to)
+        returns(bool, bytes memory)
     {
         _approveAndCall(_baseToken, _to, _value, _data);
+    }
+
+    function create(
+        uint256 _value,
+        bytes calldata _data
+    )
+        external
+        authorizedAction(address(0))
+        returns(bool, address)
+    {
+        _create(_value, _data);
+    }
+
+    function create2(
+        uint256 _value,
+        bytes calldata _data,
+        bytes32 _salt
+    )
+        external
+        authorizedAction(address(0))
+        returns(bool, address)
+    {
+        _create2(_value, _data, _salt);
     }
 
     function getData(bytes32 _key)

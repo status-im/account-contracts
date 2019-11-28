@@ -1,11 +1,12 @@
 pragma solidity >=0.5.0 <0.6.0;
 
-import "./AccountGasAbstract.sol";
+import "../account/Account.sol";
 import "../cryptography/ECDSA.sol";
+
 /**
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  */
-contract MultisigAccount is AccountGasAbstract {
+contract MultisigAccount is Account {
 
     bytes4 internal constant MSG_EXECUTE_PREFIX = bytes4(
         keccak256("execute(uint256,address,uint256,bytes)")
@@ -71,14 +72,14 @@ contract MultisigAccount is AccountGasAbstract {
     {
         uint _amountSignatures = _signature.length / 65;
         if(_amountSignatures != required) {
-            return 0x00000000;
+            return 0xffffffff;
         }
 
         address lastSigner = address(0);
         uint8 v;
         bytes32 r;
         bytes32 s;
-        bytes32 dataHash = ECDSA.toERC191SignedMessage(byte(0x00), _data);
+        bytes32 dataHash = ECDSA.toERC191SignedMessage(_data);
         for (uint256 i = 0; i < _amountSignatures; i++) {
             /* solium-disable-next-line security/no-inline-assembly*/
             assembly {
@@ -88,8 +89,8 @@ contract MultisigAccount is AccountGasAbstract {
                 v := and(mload(add(_signature, add(signaturePos, 0x41))), 0xff)
             }
             address signer = ecrecover(dataHash, v, r, s);
-            if (signer <= lastSigner || !isKey[signer] ) {
-                return 0x00000000;
+            if (signer < lastSigner || !isKey[signer] ) {
+                return 0xffffffff;
             }
 
             lastSigner = signer;

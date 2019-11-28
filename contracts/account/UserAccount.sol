@@ -12,6 +12,8 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     string internal constant ERR_BAD_PARAMETER = "Bad parameter";
     string internal constant ERR_UNAUTHORIZED = "Unauthorized";
     string internal constant ERR_CREATE_FAILED = "Contract creation failed";
+    uint256 constant OPERATION_CALL = 0;
+    uint256 constant OPERATION_CREATE = 1;
     mapping(bytes32 => bytes) store;
 
     address public owner;
@@ -136,6 +138,32 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     {
         require(newOwner != address(0), ERR_BAD_PARAMETER);
         owner = newOwner;
+    }
+
+    /**
+     * @notice ERC725 execute interface
+     * @param _operationType destination of call
+     * @param _to destination of call
+     * @param _value call ether value (in wei)
+     * @param _data call data
+     */
+    function execute(
+        uint256 _operationType,
+        address _to,
+        uint256 _value,
+        bytes calldata _data
+    )
+        external
+        authorizedAction(_to)
+    {
+        if (_operationType == OPERATION_CALL) {
+            _call(_to, _value, _data);
+        } else if (_operationType == OPERATION_CREATE) {
+            require(_to == address(0), "Bad parameter");
+            _create(_value, _data);
+        } else {
+            revert("Unsupported");
+        }
     }
 
     /**

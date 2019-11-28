@@ -248,4 +248,32 @@ contract AccountGasAbstract is Account, GasRelay {
 
     }
 
+    /**
+     * @notice check gas limit and pays gas to relayer
+     * @param _startGas gasleft on call start
+     * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
+     * @param _gasLimit maximum gas of this transacton
+     * @param _gasToken token being used for paying `_gasRelayer`
+     * @param _gasRelayer beneficiary of the payout
+     */
+    function payGasRelayer(
+        uint256 _startGas,
+        uint _gasPrice,
+        uint _gasLimit,
+        address _gasToken,
+        address payable _gasRelayer
+    )
+        internal
+    {
+        uint256 _amount = 21000 + (_startGas - gasleft());
+        require(_gasLimit == 0 || _amount <= _gasLimit, ERR_GAS_LIMIT_EXCEEDED);
+        if (_gasPrice > 0) {
+            _amount = _amount * _gasPrice;
+            if (_gasToken == address(0)) {
+                _gasRelayer.transfer(_amount);
+            } else {
+                ERC20Token(_gasToken).transfer(_gasRelayer, _amount);
+            }
+        }
+    }
 }

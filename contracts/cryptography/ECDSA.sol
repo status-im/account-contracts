@@ -90,7 +90,7 @@ library ECDSA {
      * See {recover}.
      */
     function toERC191SignedMessage(bytes memory data) internal pure returns (bytes32) {
-        return toERC191SignedMessage(0x00, data);
+        return keccak256(abi.encodePacked(byte(0x19), byte(0x0), data));
     }
 
     function toERC191SignedMessage(byte version, bytes memory data) internal pure returns (bytes32) {

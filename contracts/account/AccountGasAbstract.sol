@@ -92,7 +92,7 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay, ERC1077 {
             _signature
         )
     {
-        _call(_to, _value,_data);
+        _call(_to, _value, _data, _gasLimit);
     }
 
 
@@ -173,7 +173,7 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay, ERC1077 {
             _signature
         )
     {
-        _approveAndCall(_baseToken, _to, _value, _data);
+        _approveAndCall(_baseToken, _to, _value, _data, _gasLimit);
     }
 
 
@@ -208,14 +208,14 @@ contract AccountGasAbstract is Account, ERC1271, GasRelay, ERC1077 {
         require(nonce == _nonce, ERR_BAD_NONCE);
 
         if(_operationType == OperationType.CALL){
-            _call(_to, _value,_data);
+            _call(_to, _value,_data, _gasLimit);
         } else if(_operationType == OperationType.APPROVEANDCALL){
-            _approveAndCall(_gasToken, _to, _value, _data);
+            _approveAndCall(_gasToken, _to, _value, _data, _gasLimit);
         } else if(_operationType == OperationType.CREATE){
             _create(_value, _data);
         } else {
             revert("Not implemented");
-        } 
+        }
     }
 
     function canExecute(

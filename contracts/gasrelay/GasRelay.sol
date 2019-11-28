@@ -1,13 +1,14 @@
 pragma solidity >=0.5.0 <0.6.0;
 
 import "../token/ERC20Token.sol";
+import "./ERC1077.sol";
 
 /**
  * @title GasRelay
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  * @notice abstract gas abstraction
  */
-contract GasRelay {
+contract GasRelay is ERC1077 {
 
     bytes4 internal constant MSG_CALL_GASRELAY_PREFIX = bytes4(
         keccak256("callGasRelay(address,uint256,bytes,uint256,address,uint256,uint256,address)")

@@ -71,7 +71,7 @@ contract PaymentNetworkActor is Controlled {
         nonce++;
 
         //calls identity to execute approval of token withdraw by payment network
-        Identity(controller).execute(0, address(_token), 0, abi.encodeWithSelector(_token.approve.selector, paymentNetwork, _value));
+        Identity(controller).call(address(_token), 0, abi.encodeWithSelector(_token.approve.selector, paymentNetwork, _value));
         
         //calls payment network to process payment
         paymentNetwork.process(_token, controller, _to, _value);

@@ -1,16 +1,16 @@
 pragma solidity >=0.5.0 <0.6.0;
 
-import "../token/ERC20Token.sol";
+import "./Caller.sol";
+import "./Creator.sol";
+import "./Signer.sol";
 
 /**
- * @notice Abstract account logic. Tracks nonce for the internal functions of call, approveAndCall, create and create2. Default function is payable with no events/logic.
+ * @notice Abstract account logic. Tracks nonce and fire events for the internal functions of call, approveAndCall, create and create2. Default function is payable with no events/logic.
  */
-contract Account {
+contract Account is Caller, Creator, Signer {
 
     event Executed(uint256 nonce, bool success, bytes returndata);
     event Deployed(uint256 nonce, bool success, address returnaddress);
-    string internal constant ERR_BAD_TOKEN_ADDRESS = "Bad token address";
-    string internal constant ERR_BAD_DESTINATION = "Bad destination";
 
     uint256 public nonce;
 
@@ -34,7 +34,7 @@ contract Account {
      * @param _value call ether value (in wei)
      * @param _data call data
      * @return internal transaction status and returned data
-     */  
+     */
     function _call(
         address _to,
         uint256 _value,
@@ -44,7 +44,7 @@ contract Account {
         returns (bool success, bytes memory returndata)
     {
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE external call
-        (success,returndata) = _to.call.value(_value)(_data); //external call
+        (success, returndata) = super._call(_to, _value, _data); //external call
         emit Executed(_nonce, success, returndata);
     }
 
@@ -66,7 +66,7 @@ contract Account {
         returns (bool success, bytes memory returndata)
     {
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE external call
-        (success,returndata) = _to.call.gas(_gas).value(_value)(_data); //external call
+        (success, returndata) = super._call(_to, _value, _data, _gas); //external call
         emit Executed(_nonce, success, returndata);
     }
 
@@ -81,17 +81,12 @@ contract Account {
         bytes memory _code
     )
         internal
-        returns (bool, address payable)
+        returns (address payable createdContract)
     {
-        bool failed;
-        address payable createdContract;
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE deploy
-        assembly {
-            createdContract := create(_value, add(_code, 0x20), mload(_code)) //deploy
-            failed := iszero(extcodesize(createdContract))
-        }
-        emit Deployed(_nonce, !failed, createdContract);
-        return(!failed, createdContract);
+        createdContract = super._create(_value, _code);
+        bool success = isContract(createdContract);
+        emit Deployed(_nonce, success, createdContract);
     }
 
     /**
@@ -107,17 +102,12 @@ contract Account {
         bytes32 _salt
     )
         internal
-        returns (bool, address payable)
+        returns (address payable createdContract)
     {
-        bool failed;
-        address payable createdContract;
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE deploy
-        assembly {
-            createdContract := create2(_value, add(_code, 0x20), mload(_code), _salt) //deploy
-            failed := iszero(extcodesize(createdContract))
-        }
-        emit Deployed(_nonce, !failed, createdContract);
-        return(!failed, createdContract);
+        createdContract = super._create2(_value, _code, _salt);
+        bool success = isContract(createdContract);
+        emit Deployed(_nonce, success, createdContract);
     }
 
     /**
@@ -138,10 +128,7 @@ contract Account {
         returns (bool success, bytes memory returndata)
     {
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE external call
-        require(_baseToken != address(0), ERR_BAD_TOKEN_ADDRESS); //_baseToken should be something!
-        require(_to != address(0) && _to != address(this), ERR_BAD_DESTINATION); //need valid destination
-        ERC20Token(_baseToken).approve(_to, _value); //external call
-        (success, returndata) = _to.call(_data); //external NO VALUE call
+        (success, returndata) = super._approveAndCall(_baseToken, _to, _value, _data);
         emit Executed(_nonce, success, returndata);
     }
 
@@ -165,11 +152,18 @@ contract Account {
         returns (bool success, bytes memory returndata)
     {
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE external call
-        require(_baseToken != address(0), ERR_BAD_TOKEN_ADDRESS); //_baseToken should be something!
-        require(_to != address(0) && _to != address(this), ERR_BAD_DESTINATION); //need valid destination
-        ERC20Token(_baseToken).approve(_to, _value); //external call
-        (success, returndata) = _to.call.gas(_gas)(_data); //external NO VALUE call
+        (success, returndata) = super._approveAndCall(_baseToken, _to, _value, _data, _gas);
         emit Executed(_nonce, success, returndata);
     }
 
+    /**
+     * @dev Internal function to determine if an address is a contract
+     * @param _target The address being queried
+     * @return True if `_addr` is a contract
+     */
+    function isContract(address _target) internal view returns(bool result) {
+        assembly {
+            result := gt(extcodesize(_target), 0)
+        }
+    }
 }

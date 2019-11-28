@@ -1,6 +1,9 @@
 pragma solidity >=0.5.0 <0.6.0;
 
-contract ERC1271 {
+/** 
+ * @notice ERC-1271: Standard Signature Validation Method for Contracts  
+ */
+contract Signer {
 
     //bytes4(keccak256("isValidSignature(bytes,bytes)")
     bytes4 constant internal MAGICVALUE = 0x20c13b0b;

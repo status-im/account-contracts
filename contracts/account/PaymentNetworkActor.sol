@@ -1,9 +1,8 @@
 pragma solidity >=0.5.0 <0.6.0;
 
-import "../cryptography/MerkleProof.sol";
 import "../cryptography/ECDSA.sol";
 import "../token/ERC20Token.sol";
-import "./Identity.sol";
+import "./Actor.sol";
 import "../common/Controlled.sol";
 
 
@@ -21,13 +20,14 @@ contract PaymentNetworkActor is Controlled {
     address public keycard;
     uint256 public nonce;
     Settings public settings;
-    mapping(address => uint) public pendingWithdrawals;
+    Actor public actor;
 
     struct Settings {
         uint256 maxTxValue;
     }
 
-    constructor(PaymentNetwork _paymentNetwork, address _keycard, uint256 _maxTxValue) public {
+    constructor(Actor _actor, PaymentNetwork _paymentNetwork, address _keycard, uint256 _maxTxValue) public {
+        actor = _actor;
         keycard = _keycard;
         settings.maxTxValue = _maxTxValue;
         paymentNetwork = _paymentNetwork;
@@ -71,8 +71,8 @@ contract PaymentNetworkActor is Controlled {
         nonce++;
 
         //calls identity to execute approval of token withdraw by payment network
-        Identity(controller).call(address(_token), 0, abi.encodeWithSelector(_token.approve.selector, paymentNetwork, _value));
-        
+        actor.call(address(_token), 0, abi.encodeWithSelector(ERC20Token.approve.selector, paymentNetwork, _value));
+
         //calls payment network to process payment
         paymentNetwork.process(_token, controller, _to, _value);
     }

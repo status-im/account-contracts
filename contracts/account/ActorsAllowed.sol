@@ -1,48 +1,50 @@
 pragma solidity >=0.5.0 <0.6.0;
 
-import "./ERC725.sol";
-import "./Signer.sol";
+import "./UserAccountInterface.sol";
+import "../common/Controlled.sol";
+import "./Actor.sol";
+
 /**
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
- * @notice A common user account interface
  */
-contract UserAccountInterface is ERC725, Signer {
+contract ActorsAllowed is Actor, Controlled {
 
-    /**
-     * @notice Defines recoveryContract address.
-     * @param _recovery address of recoveryContract contract
-     */
-    function setRecovery(address _recovery) external;
+    address[] public actors;
+    mapping(address => bool) public isActor;
 
-    /**
-     * @notice Defines the new owner and disable actors. Can only be called by recovery.
-     * @param newOwner an ERC1271 contract
-     */
-    function recoverAccount(address newOwner) external;
-
-    /**
-     * @notice Changes permission of actors from calling other contracts.
-     * @param _actorsEnabled enable switch of actors
-     */
-    function setActorsEnabled(bool _actorsEnabled) external;
-
+    modifier onlyActors {
+        require(isActor[msg.sender], "Unauthorized");
+    }
     /**
      * @notice Adds a new actor that could arbitrarely call external contracts. If specific permission logic (e.g. ACL), it can be implemented in the actor's address contract logic.
      * @param newActor a new actor to be added.
      */
-    function addActor(address newActor) external;
+    function addActor(address newActor)
+        external
+        onlyController
+    {
+        require(!isActor[newActor], "Already defined");
+        actors.push(newActor);
+        isActor[newActor] = true;
+    }
 
     /**
      * @notice Removes an actor
      * @param index position of actor in the `actors()` array list.
      */
-    function removeActor(uint256 index) external;
-
-    /**
-     * @notice Replace owner address.
-     * @param newOwner address of externally owned account or ERC1271 contract to control this account
-     */
-    function changeOwner(address newOwner) external;
+    function removeActor(uint256 index)
+        external
+        onlyController
+    {
+        uint256 lastPos = actors.length-1;
+        require(index <= lastPos, "Index out of bounds");
+        address removing = actors[index];
+        isActor[removing] = false;
+        if(index != lastPos){
+            actors[index] = actors[lastPos];
+        }
+        actors.length--;
+    }
 
     /**
      * @notice calls another contract
@@ -57,7 +59,11 @@ contract UserAccountInterface is ERC725, Signer {
         bytes calldata _data
     )
         external
-        returns(bool success, bytes memory returndata);
+        onlyActors
+        returns(bool success, bytes memory returndata)
+    {
+        (success, returndata) = UserAccountInterface(controller).call(_to, _value, _data);
+    }
 
     /**
      * @notice Approves `_to` spending ERC20 `_baseToken` a total of `_value` and calls `_to` with `_data`. Useful for a better UX on ERC20 token use, and avoid race conditions.
@@ -74,7 +80,11 @@ contract UserAccountInterface is ERC725, Signer {
         bytes calldata _data
     )
         external
-        returns(bool success, bytes memory returndata);
+        onlyActors
+        returns(bool success, bytes memory returndata)
+    {
+        (success, returndata) = UserAccountInterface(controller).approveAndCall(_baseToken, _to, _value, _data);
+    }
 
     /**
      * @notice creates new contract based on input `_code` and transfer `_value` ETH to this instance
@@ -87,20 +97,10 @@ contract UserAccountInterface is ERC725, Signer {
         bytes calldata _data
     )
         external
-        returns(address createdContract);
+        onlyActors
+        returns(address createdContract)
+    {
+        (success, returndata) = UserAccountInterface(controller).create(_value, _data);
+    }
 
-    /**
-     * @notice creates deterministic address contract using on input `_code` and transfer `_value` ETH to this instance
-     * @param _value amount ether in wei to sent to deployed address at its initialization
-     * @param _code contract code
-     * @param _salt changes the resulting address
-     * @return creation success status and created contract address
-     */
-    function create2(
-        uint256 _value,
-        bytes calldata _data,
-        bytes32 _salt
-    )
-        external
-        returns(address createdContract);
 }

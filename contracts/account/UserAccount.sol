@@ -18,9 +18,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
 
     address public owner;
     address public recovery;
-    bool public actorsEnabled;
-    address[] public actors;
-    mapping(address => bool) public isActor;
+    address public actor;
 
     /**
      * Allow only calls from itself or directly from owner
@@ -31,13 +29,12 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     }
 
     /**
-     * @dev Allow calls only from actors to external addresses, or any call from owner
+     * @dev Allow calls only from actor to external addresses, or any call from owner
      */
     modifier authorizedAction(address _to) {
         require(
             (
-                actorsEnabled && //only when actors are enabled
-                isActor[msg.sender] && //must be an actor
+                msg.sender == actor && //must be an actor
                 _to != address(this)  //can only call external address
             ) || msg.sender == address(owner), //owner can anything
             ERR_UNAUTHORIZED);
@@ -61,7 +58,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     }
 
     /**
-     * @notice Defines the new owner and disable actors. Can only be called by recovery.
+     * @notice Defines the new owner and disable actor. Can only be called by recovery.
      * @param newOwner an ERC1271 contract or externally owned account
      */
     function recoverAccount(address newOwner)
@@ -70,7 +67,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         require(recovery == msg.sender, ERR_UNAUTHORIZED);
         require(newOwner != address(0), ERR_BAD_PARAMETER);
         owner = newOwner;
-        actorsEnabled = false;
+        actor = address(0);
     }
 
     /**
@@ -87,45 +84,14 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     }
 
     /**
-     * @notice Changes permission of actors from calling other contracts.
-     * @param _actorsEnabled enable switch of actors
+     * @notice Changes actor contract
+     * @param _actors Contract which can call actions from this contract
      */
-    function setActorsEnabled(bool _actorsEnabled)
+    function setActors(address _actors)
         external
         management
     {
-        actorsEnabled = _actorsEnabled;
-    }
-
-    /**
-     * @notice Adds a new actor that could arbitrarely call external contracts. If specific permission logic (e.g. ACL), it can be implemented in the actor's address contract logic.
-     * @param newActor a new actor to be added.
-     */
-    function addActor(address newActor)
-        external
-        management
-    {
-        require(!isActor[newActor], "Already defined");
-        actors.push(newActor);
-        isActor[newActor] = true;
-    }
-
-    /**
-     * @notice Removes an actor
-     * @param index position of actor in the `actors()` array list.
-     */
-    function removeActor(uint256 index)
-        external
-        management
-    {
-        uint256 lastPos = actors.length-1;
-        require(index <= lastPos, "Index out of bounds");
-        address removing = actors[index];
-        isActor[removing] = false;
-        if(index != lastPos){
-            actors[index] = actors[lastPos];
-        }
-        actors.length--;
+        actor = _actors;
     }
 
     /**
@@ -273,7 +239,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         if(isContract(owner)){
             return ERC1271(owner).isValidSignature(_data, _signature);
         } else {
-            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature);
+            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature) ? MAGICVALUE : 0xFFFFFFFF;
         }
     }
 }

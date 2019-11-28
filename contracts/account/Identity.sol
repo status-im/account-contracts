@@ -8,6 +8,8 @@ import "./ERC725.sol";
  * @notice Defines an account which can be setup by a owner address (multisig contract), recovered by a recover address (a sort of secret multisig contract), and execute actions from a list of addresses (authorized contracts, extensions, etc)
  */
 contract Identity is AccountGasAbstract, ERC725 {
+    string internal constant ERR_BAD_PARAMETER = "Bad parameter";
+    string internal constant ERR_UNAUTHORIZED = "Unauthorized";
     uint256 constant OPERATION_CALL = 0;
     uint256 constant OPERATION_CREATE = 1;
     mapping(bytes32 => bytes) store;
@@ -19,35 +21,33 @@ contract Identity is AccountGasAbstract, ERC725 {
     mapping(address => bool) public isActor;
 
     modifier management {
-        require(msg.sender == address(owner) || msg.sender == address(this), "Unauthorized");
-        _;
-    }
-
-    modifier recovery {
-        require(recoveryContract == address(0) && (msg.sender == address(this) || msg.sender == address(owner)) || msg.sender == recoveryContract, "Unauthorized");
+        require(msg.sender == address(owner) || msg.sender == address(this), ERR_UNAUTHORIZED);
         _;
     }
 
     modifier authorizedAction(address _to) {
-        require((actorsEnabled && isActor[msg.sender] && _to != address(this)) || msg.sender == address(owner), "Unauthorized");
+        require(
+            (
+                actorsEnabled && //only when actors are enabled
+                isActor[msg.sender] && //must be an actor
+                _to != address(this)  //can only call external address
+            ) || msg.sender == address(owner), //owner can anything
+            ERR_UNAUTHORIZED);
         _;
     }
 
-    /**
-     * @notice Defines recoveryContract address.
-     * @param _recovery address of recoveryContract contract
-     */
     function setRecovery(address _recovery)
         external
-        recovery
+        management
     {
+        require(recoveryContract == address(0), ERR_UNAUTHORIZED);
         recoveryContract = _recovery;
     }
 
     function recoverAccount(ERC1271 newOwner)
         external
-        recovery
     {
+        require(recoveryContract == msg.sender, ERR_UNAUTHORIZED);
         owner = newOwner;
         actorsEnabled = false;
     }
@@ -94,7 +94,7 @@ contract Identity is AccountGasAbstract, ERC725 {
         external
         management
     {
-        require(address(newOwner) != address(0), "Bad parameter");
+        require(address(newOwner) != address(0), ERR_BAD_PARAMETER);
         owner = ERC1271(newOwner);
     }
 
@@ -110,7 +110,7 @@ contract Identity is AccountGasAbstract, ERC725 {
         if (_operationType == OPERATION_CALL) {
             _call(_to, _value, _data);
         } else if (_operationType == OPERATION_CREATE) {
-            require(_to == address(0), "Bad parameter");
+            require(_to == address(0), ERR_BAD_PARAMETER);
             _create(_value, _data);
         } else {
             revert("Unsupported");
@@ -145,6 +145,7 @@ contract Identity is AccountGasAbstract, ERC725 {
         view
         returns (bytes4 magicValue)
     {
+        //TODO: check if owner address contains code, if not, ecrecover directly and compare against address, otherwise use ERC1271
         return owner.isValidSignature(_data, _signature);
     }
 

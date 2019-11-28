@@ -8,7 +8,7 @@ import "../cryptography/ECDSA.sol";
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  * @notice Defines an account which can be setup by a owner address (multisig contract), recovered by a recover address (a sort of secret multisig contract), and execute actions from a list of addresses (authorized contracts, extensions, etc)
  */
-contract Identity is UserAccountInterface, AccountGasAbstract {
+contract UserAccount is UserAccountInterface, AccountGasAbstract {
     string internal constant ERR_BAD_PARAMETER = "Bad parameter";
     string internal constant ERR_UNAUTHORIZED = "Unauthorized";
     string internal constant ERR_CREATE_FAILED = "Contract creation failed";

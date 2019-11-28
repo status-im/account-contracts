@@ -1,18 +1,20 @@
 pragma solidity >=0.5.0 <0.6.0;
 
+import "./UserAccountInterface.sol";
 import "./AccountGasAbstract.sol";
-import "./ERC725.sol";
+import "../cryptography/ECDSA.sol";
 
 /**
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  * @notice Defines an account which can be setup by a owner address (multisig contract), recovered by a recover address (a sort of secret multisig contract), and execute actions from a list of addresses (authorized contracts, extensions, etc)
  */
-contract Identity is AccountGasAbstract, ERC725 {
+contract Identity is UserAccountInterface, AccountGasAbstract {
     string internal constant ERR_BAD_PARAMETER = "Bad parameter";
     string internal constant ERR_UNAUTHORIZED = "Unauthorized";
+    string internal constant ERR_CREATE_FAILED = "Contract creation failed";
     mapping(bytes32 => bytes) store;
 
-    ERC1271 public owner;
+    address public owner;
     address public recoveryContract;
     bool public actorsEnabled;
     address[] public actors;
@@ -41,25 +43,30 @@ contract Identity is AccountGasAbstract, ERC725 {
     }
 
     /**
-     * @notice Defines recoveryContract address.
+     * @notice Defines recoveryContract address. Can only be called by owner when no recovery is set, or by recovery.
      * @param _recovery address of recoveryContract contract
      */
     function setRecovery(address _recovery)
         external
-        management
     {
-        require(recoveryContract == address(0), ERR_UNAUTHORIZED);
+        require(
+            (
+                msg.sender == owner && recoveryContract == address(0)
+            ) || msg.sender == recoveryContract,
+            ERR_UNAUTHORIZED
+        );
         recoveryContract = _recovery;
     }
 
     /**
      * @notice Defines the new owner and disable actors. Can only be called by recovery.
-     * @param newOwner an ERC1271 contract
+     * @param newOwner an ERC1271 contract or externally owned account
      */
-    function recoverAccount(ERC1271 newOwner)
+    function recoverAccount(address newOwner)
         external
     {
         require(recoveryContract == msg.sender, ERR_UNAUTHORIZED);
+        require(newOwner != address(0), ERR_BAD_PARAMETER);
         owner = newOwner;
         actorsEnabled = false;
     }
@@ -121,14 +128,14 @@ contract Identity is AccountGasAbstract, ERC725 {
 
     /**
      * @notice Replace owner address.
-     * @param newOwner address of ERC1271 contract controlling this account
+     * @param newOwner address of externally owned account or ERC1271 contract to control this account
      */
     function changeOwner(address newOwner)
         external
         management
     {
-        require(address(newOwner) != address(0), ERR_BAD_PARAMETER);
-        owner = ERC1271(newOwner);
+        require(newOwner != address(0), ERR_BAD_PARAMETER);
+        owner = newOwner;
     }
 
     /**
@@ -175,7 +182,7 @@ contract Identity is AccountGasAbstract, ERC725 {
      * @notice creates new contract based on input `_code` and transfer `_value` ETH to this instance
      * @param _value amount ether in wei to sent to deployed address at its initialization
      * @param _code contract code
-     * @return creation success status and created contract address
+     * @return created contract address
      */
     function create(
         uint256 _value,
@@ -183,9 +190,10 @@ contract Identity is AccountGasAbstract, ERC725 {
     )
         external
         authorizedAction(address(0))
-        returns(bool success, address createdContract)
+        returns(address createdContract)
     {
-        (success, createdContract) = _create(_value, _data);
+        (createdContract) = _create(_value, _data);
+        require(isContract(createdContract), ERR_CREATE_FAILED);
     }
 
     /**
@@ -193,7 +201,7 @@ contract Identity is AccountGasAbstract, ERC725 {
      * @param _value amount ether in wei to sent to deployed address at its initialization
      * @param _code contract code
      * @param _salt changes the resulting address
-     * @return creation success status and created contract address
+     * @return created contract address
      */
     function create2(
         uint256 _value,
@@ -202,9 +210,10 @@ contract Identity is AccountGasAbstract, ERC725 {
     )
         external
         authorizedAction(address(0))
-        returns(bool success, address createdContract)
+        returns(address createdContract)
     {
-        (success, createdContract) = _create2(_value, _data, _salt);
+        (createdContract) = _create2(_value, _data, _salt);
+        require(isContract(createdContract), ERR_CREATE_FAILED);
     }
 
     /**
@@ -221,7 +230,7 @@ contract Identity is AccountGasAbstract, ERC725 {
     }
 
     /**
-     * @notice checks if owner signed `_data`
+     * @notice checks if owner signed `_data`. ERC1271 interface.
      * @param _data Data signed
      * @param _signature owner's signature(s) of data
      */
@@ -233,9 +242,10 @@ contract Identity is AccountGasAbstract, ERC725 {
         view
         returns (bytes4 magicValue)
     {
-        //TODO: check if owner address contains code, if not, ecrecover directly and compare against address, otherwise use ERC1271
-        return owner.isValidSignature(_data, _signature);
+        if(isContract(owner)){
+            return ERC1271(owner).isValidSignature(_data, _signature);
+        } else {
+            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature);
+        }
     }
-
-
 }

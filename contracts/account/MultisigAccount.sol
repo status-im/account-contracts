@@ -1,4 +1,5 @@
 pragma solidity >=0.5.0 <0.6.0;
+
 import "./AccountGasAbstract.sol";
 import "../cryptography/ECDSA.sol";
 /**
@@ -29,7 +30,7 @@ contract MultisigAccount is AccountGasAbstract {
         }
     }
 
-    function execute(address _to, uint256 _value, bytes calldata _data, bytes calldata _signature) external {
+    function callSigned(address _to, uint256 _value, bytes calldata _data, bytes calldata _signature) external {
         require(
             isValidSignature(
                 abi.encodePacked(

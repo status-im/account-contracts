@@ -4,17 +4,13 @@ import "../cryptography/MerkleProof.sol";
 import "../cryptography/ECDSA.sol";
 import "../token/ERC20Token.sol";
 import "../common/TokenClaimer.sol";
+import "../common/Controlled.sol";
 
 /**
  * @notice Select privately other accounts that will allow the execution of actions
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  */
-contract MultisigRecovery is TokenClaimer {
-
-    /**
-     * Controller of Recovery
-     */
-    address payable public identity;
+contract MultisigRecovery is Controlled, TokenClaimer {
 
     /** # User Secret Data Hash
      * Hash of Semi-private information, such as a "randomly ordered personal information + secret answer", or a hash of user biometric data.
@@ -67,10 +63,6 @@ contract MultisigRecovery is TokenClaimer {
     event Approved(bytes32 indexed secretHash, address approver);
     event Execution(bool success);
 
-    modifier identityOnly() {
-        require(msg.sender == identity, "Unauthorized");
-        _;
-    }
     modifier notRevealed(bytes32 secretHash) {
         require(!revealed[secretHash], "Already revealed");
         _;
@@ -78,14 +70,14 @@ contract MultisigRecovery is TokenClaimer {
 
     /**
      * @notice Contructor of FriendsRecovery
-     * @param _identity Controller of this contract
+     * @param _controller Controller of this contract
      * @param _userDataHash Double hash of User Secret
      * @param _secretThresholdHash Secret Amount of approvals required
      * @param _friendsMerkleRoot Merkle root of new secret friends list
      * @param _setupDelay Delay for changes being active
      **/
     constructor(
-        address payable _identity,
+        address payable _controller,
         bytes32 _secretThresholdHash,
         bytes32 _userDataHash,
         bytes32 _friendsMerkleRoot,
@@ -93,7 +85,7 @@ contract MultisigRecovery is TokenClaimer {
     )
         public
     {
-        identity = _identity;
+        controller = _controller;
         secretThresholdHash = _secretThresholdHash;
         userDataHash = _userDataHash;
         friendsMerkleRoot = _friendsMerkleRoot;
@@ -108,9 +100,9 @@ contract MultisigRecovery is TokenClaimer {
      */
     function claimTokens(address _token)
         external
-        identityOnly
+        onlyController
     {
-        withdrawBalance(_token, identity);
+        withdrawBalance(_token, controller);
     }
 
     /**
@@ -118,7 +110,7 @@ contract MultisigRecovery is TokenClaimer {
      */
     function cancelSetup()
         external
-        identityOnly
+        onlyController
     {
         delete pendingSetup;
         emit SetupRequested(0);
@@ -138,15 +130,23 @@ contract MultisigRecovery is TokenClaimer {
         bytes32 _friendsMerkleRoot
     )
         external
-        identityOnly
+        onlyController
         notRevealed(_userDataHash)
     {
-        pendingSetup.timestamp = block.timestamp;
-        pendingSetup.userDataHash = _userDataHash;
-        pendingSetup.friendsMerkleRoot = _friendsMerkleRoot;
-        pendingSetup.secretThresholdHash = _secretThresholdHash;
-        pendingSetup.setupDelay = _setupDelay;
-        emit SetupRequested(block.timestamp + setupDelay);
+        if(userDataHash == bytes32(0)){
+            secretThresholdHash = _secretThresholdHash;
+            userDataHash = _userDataHash;
+            friendsMerkleRoot = _friendsMerkleRoot;
+            setupDelay = _setupDelay;
+        } else {
+            pendingSetup.timestamp = block.timestamp;
+            pendingSetup.userDataHash = _userDataHash;
+            pendingSetup.friendsMerkleRoot = _friendsMerkleRoot;
+            pendingSetup.secretThresholdHash = _secretThresholdHash;
+            pendingSetup.setupDelay = _setupDelay;
+            emit SetupRequested(block.timestamp + setupDelay);
+        }
+
     }
 
     /**
@@ -189,7 +189,7 @@ contract MultisigRecovery is TokenClaimer {
     function approvePreSigned(bytes32 _secretCall, bytes32[] calldata _proof, bytes calldata _signature)
         external
     {
-        bytes32 signatureHash = ECDSA.toERC191SignedMessage(abi.encodePacked(address(identity), userDataHash, _secretCall));
+        bytes32 signatureHash = ECDSA.toERC191SignedMessage(abi.encodePacked(controller, userDataHash, _secretCall));
         address signer = ECDSA.recover(signatureHash, _signature);
         require(MerkleProof.verify(_proof, friendsMerkleRoot, keccak256(abi.encodePacked(userDataHash, signer))), "Invalid proof");
         require(signer != address(0), "Invalid signature");
@@ -204,37 +204,28 @@ contract MultisigRecovery is TokenClaimer {
      * @param _dest Address will be called
      * @param _data Data to be sent
      * @param _friendList friends addresses that approved
-     * @param _newUserDataHash new recovery double hashed user userDataHash
-     * @param _newFriendsMerkleRoot new friends list hashed with new recovery userDataHash hash
-     * @param _newSecretThreshold Threshold using the new userDataHash
      */
     function execute(
         bytes32 _revealedSecret,
         address _dest,
         bytes calldata _data,
-        address[] calldata _friendList,
-        bytes32 _newUserDataHash,
-        bytes32 _newFriendsMerkleRoot,
-        bytes32 _newSecretThreshold
+        address[] calldata _friendList
     )
         external
-        notRevealed(_newUserDataHash)
     {
+        require(userDataHash != bytes32(0), "Recovery not set");
         uint256 _threshold = _friendList.length;
         bytes32 secretHash = keccak256(abi.encodePacked(_revealedSecret));
-        require(userDataHash == keccak256(abi.encodePacked(secretHash, identity)), "Invalid secret");
+        require(userDataHash == keccak256(abi.encodePacked(secretHash, controller)), "Invalid secret");
         require(secretThresholdHash == keccak256(abi.encodePacked(_revealedSecret, _threshold)), "Invalid threshold");
         revealed[userDataHash] = true;
 
         bytes32 callHash = keccak256(
             abi.encodePacked(
-                identity,
+                controller,
                 secretHash,
                 _dest,
-                _data,
-                _newUserDataHash,
-                _newSecretThreshold,
-                _newFriendsMerkleRoot
+                _data
             )
         );
 
@@ -244,9 +235,10 @@ contract MultisigRecovery is TokenClaimer {
             delete signed[callHash][friend];
         }
 
-        userDataHash = _newUserDataHash;
-        secretThresholdHash = _newSecretThreshold;
-        friendsMerkleRoot = _newFriendsMerkleRoot;
+        delete userDataHash;
+        delete secretThresholdHash;
+        delete friendsMerkleRoot;
+        delete pendingSetup;
         bool success;
         (success, ) = _dest.call(_data);
         emit Execution(success);

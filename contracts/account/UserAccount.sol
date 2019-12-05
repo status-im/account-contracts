@@ -3,12 +3,15 @@ pragma solidity >=0.5.0 <0.6.0;
 import "./UserAccountInterface.sol";
 import "./AccountGasAbstract.sol";
 import "../cryptography/ECDSA.sol";
+import "../common/LibBytes.sol";
 
 /**
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  * @notice Defines an account which can be setup by a owner address (multisig contract), recovered by a recover address (a sort of secret multisig contract), and execute actions from a list of addresses (authorized contracts, extensions, etc)
  */
 contract UserAccount is UserAccountInterface, AccountGasAbstract {
+    using LibBytes for bytes
+    ;
     string internal constant ERR_BAD_PARAMETER = "Bad parameter";
     string internal constant ERR_UNAUTHORIZED = "Unauthorized";
     string internal constant ERR_CREATE_FAILED = "Contract creation failed";
@@ -239,7 +242,107 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         if(isContract(owner)){
             return Signer(owner).isValidSignature(_data, _signature);
         } else {
-            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature) ? MAGICVALUE : bytes4(0xffffffff);
+            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature) ? ERC1271_TRUE : ERC1271_FALSE;
         }
     }
+
+    function isValidSignature(
+        bytes32 hash,
+        address signerAddress,
+        bytes memory signature
+    )
+        public
+        view
+        returns (bool isValid)
+    {
+        require(
+            signature.length > 0,
+            "LENGTH_GREATER_THAN_0_REQUIRED"
+        );
+
+        // Ensure signature is supported
+        uint8 signatureTypeRaw = uint8(signature.popLastByte());
+        require(
+            signatureTypeRaw < uint8(SignatureType.NSignatureTypes),
+            "SIGNATURE_UNSUPPORTED"
+        );
+
+        // Pop last byte off of signature byte array.
+        SignatureType signatureType = SignatureType(signatureTypeRaw);
+
+        // Variables are not scoped in Solidity.
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        address recovered;
+
+        if (signatureType == SignatureType.Illegal) {
+            revert("SIGNATURE_ILLEGAL");
+        } else if (signatureType == SignatureType.Invalid) {
+            require(
+                signature.length == 0,
+                "LENGTH_0_REQUIRED"
+            );
+            isValid = false;
+            return isValid;
+        } else if (signatureType == SignatureType.Validator) {
+            address validatorAddress = signature.popLast20Bytes();
+            if(validatorAddress == owner || validatorAddress == actor) {
+                return false;
+            }
+            isValid = Signer(validatorAddress).isValidSignature(
+                hash,
+                signerAddress,
+                signature
+            );
+            return isValid;
+        }
+
+        if(signerAddress != owner && signerAddress != actor) {
+            return false;
+        }
+        
+        if (signatureType == SignatureType.EIP712) {
+            require(
+                signature.length == 65,
+                "LENGTH_65_REQUIRED"
+            );
+            v = uint8(signature[0]);
+            r = signature.readBytes32(1);
+            s = signature.readBytes32(33);
+            recovered = ecrecover(hash, v, r, s);
+            isValid = signerAddress == recovered;
+            return isValid;
+        } else if (signatureType == SignatureType.EthSign || signatureType == SignatureType.Trezor) {
+            require(
+                signature.length == 65,
+                "LENGTH_65_REQUIRED"
+            );
+            v = uint8(signature[0]);
+            r = signature.readBytes32(1);
+            s = signature.readBytes32(33);
+            recovered = ecrecover(
+                ECDSA.toEthSignedMessageHash(hash),
+                v,
+                r,
+                s
+            );
+            isValid = signerAddress == recovered;
+            return isValid;
+
+        } else if (signatureType == SignatureType.Caller) {
+            require(
+                signature.length == 0,
+                "LENGTH_0_REQUIRED"
+            );
+            isValid = signerAddress == msg.sender;
+            
+            return isValid;
+        } else if (signatureType == SignatureType.Wallet) {
+            isValid = Signer(signerAddress).isValidSignature(abi.encode(hash), signature);
+            return isValid;
+        }
+        revert("SIGNATURE_UNSUPPORTED");
+    }
+
 }

@@ -1,13 +1,14 @@
 pragma solidity >=0.5.0 <0.6.0;
 
 import "./Caller.sol";
+import "./ERC20Caller.sol";
 import "./Creator.sol";
 import "./Signer.sol";
 
 /**
  * @notice Abstract account logic. Tracks nonce and fire events for the internal functions of call, approveAndCall, create and create2. Default function is payable with no events/logic.
  */
-contract Account is Caller, Creator, Signer {
+contract Account is Caller, ERC20Caller, Creator, Signer {
 
     event Executed(uint256 nonce, bool success, bytes returndata);
     event Deployed(uint256 nonce, bool success, address returnaddress);
@@ -27,6 +28,25 @@ contract Account is Caller, Creator, Signer {
     function() external payable {
 
     }
+
+    /**
+     * @notice calls another contract
+     * @param _to destination of call
+     * @param _data call data
+     * @return internal transaction status and returned data
+     */
+    function _call(
+        address _to,
+        bytes memory _data
+    )
+        internal
+        returns (bool success, bytes memory returndata)
+    {
+        uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE external call
+        (success, returndata) = super._call(_to, _data); //external call
+        emit Executed(_nonce, success, returndata);
+    }
+
 
     /**
      * @notice calls another contract
@@ -67,6 +87,26 @@ contract Account is Caller, Creator, Signer {
     {
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE external call
         (success, returndata) = super._call(_to, _value, _data, _gas); //external call
+        emit Executed(_nonce, success, returndata);
+    }
+
+    /**
+     * @notice calls another contract with limited gas
+     * @param _to destination of call
+     * @param _data call data
+     * @param _gas gas to limit the internal transaction
+     * @return internal transaction status and returned data
+     */
+    function _call(
+        address _to,
+        bytes memory _data,
+        uint256 _gas
+    )
+        internal
+        returns (bool success, bytes memory returndata)
+    {
+        uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE external call
+        (success, returndata) = super._call(_to, _data, _gas); //external call
         emit Executed(_nonce, success, returndata);
     }
 

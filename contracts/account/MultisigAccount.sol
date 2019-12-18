@@ -31,7 +31,15 @@ contract MultisigAccount is Account {
         }
     }
 
-    function callSigned(address _to, uint256 _value, bytes calldata _data, bytes calldata _signature) external {
+    function callSigned(
+        address _to,
+        uint256 _value,
+        bytes calldata _data,
+        bytes calldata _signature
+    )
+        external
+        returns (bool success, bytes memory returndata)
+    {
         require(
             isValidSignature(
                 abi.encodePacked(
@@ -46,7 +54,7 @@ contract MultisigAccount is Account {
             ) == MAGICVALUE,
             ERR_BAD_SIGNER
         );
-        _call(_to, _value, _data);
+        (success, returndata) = _to.call.value(_value)(_data);
     }
 
     function setKey(address key, bool isValid) external self {

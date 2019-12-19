@@ -20,11 +20,14 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     address public recovery;
     address public actor;
 
+    constructor() public {
+        
+    }
     /**
      * Allow only calls from itself or directly from owner
      */
     modifier management {
-        require(msg.sender == address(owner) || msg.sender == address(this), ERR_UNAUTHORIZED);
+        require(msg.sender == address(this) || msg.sender == address(owner), ERR_UNAUTHORIZED);
         _;
     }
 
@@ -33,16 +36,16 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
      */
     modifier authorizedAction(address _to) {
         require(
-            (
-                msg.sender == actor && //must be an actor
-                _to != address(this)  //can only call external address
-            ) || msg.sender == address(owner), //owner can anything
+            msg.sender == address(this) || ( // self is always authorized
+                msg.sender == actor && //actor is authorized
+                _to != address(this) //only for external address
+            ) || msg.sender == address(owner), //owner is always authorized
             ERR_UNAUTHORIZED);
         _;
     }
 
     /**
-     * @notice Defines recovery address. Can only be called by owner when no recovery is set, or by recovery.
+     * @notice Defines recovery address. Can only be called by management when no recovery is set, or by recovery.
      * @param _recovery address of recovery contract
      */
     function setRecovery(address _recovery)
@@ -50,7 +53,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     {
         require(
             (
-                msg.sender == owner && recovery == address(0)
+                recovery == address(0) && (msg.sender == address(this) || msg.sender == owner)
             ) || msg.sender == recovery,
             ERR_UNAUTHORIZED
         );
@@ -61,15 +64,15 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
      * @notice Defines the new owner and disable actor. Can only be called by recovery.
      * @param newOwner an ERC1271 contract or externally owned account
      */
-    function recoverAccount(address newOwner)
+    function recover(address newOwner)
         external
     {
-        require(recovery == msg.sender, ERR_UNAUTHORIZED);
+        require(msg.sender == recovery, ERR_UNAUTHORIZED);
         require(newOwner != address(0), ERR_BAD_PARAMETER);
         owner = newOwner;
         actor = address(0);
     }
-
+    
     /**
      * @notice Add public data to account. Can only be called by management. ERC725 interface.
      * @param _key identifier
@@ -85,13 +88,13 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
 
     /**
      * @notice Changes actor contract
-     * @param _actors Contract which can call actions from this contract
+     * @param _actor Contract which can call actions from this contract
      */
-    function setActors(address _actors)
+    function setActor(address _actor)
         external
         management
     {
-        actor = _actors;
+        actor = _actor;
     }
 
     /**
@@ -104,32 +107,6 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     {
         require(newOwner != address(0), ERR_BAD_PARAMETER);
         owner = newOwner;
-    }
-
-    /**
-     * @notice ERC725 execute interface
-     * @param _operationType destination of call
-     * @param _to destination of call
-     * @param _value call ether value (in wei)
-     * @param _data call data
-     */
-    function execute(
-        uint256 _operationType,
-        address _to,
-        uint256 _value,
-        bytes calldata _data
-    )
-        external
-        authorizedAction(_to)
-    {
-        if (_operationType == OPERATION_CALL) {
-            _call(_to, _value, _data);
-        } else if (_operationType == OPERATION_CREATE) {
-            require(_to == address(0), "Bad parameter");
-            _create(_value, _data);
-        } else {
-            revert("Unsupported");
-        }
     }
 
     /**

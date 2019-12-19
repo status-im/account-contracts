@@ -15,28 +15,16 @@ contract UserAccountInterface is ERC725, Signer {
     function setRecovery(address _recovery) external;
 
     /**
-     * @notice Defines the new owner and disable actors. Can only be called by recovery.
+     * @notice Defines the new owner and disable actor. Can only be called by recovery.
      * @param newOwner an ERC1271 contract
      */
-    function recoverAccount(address newOwner) external;
-
-    /**
-     * @notice Changes permission of actors from calling other contracts.
-     * @param _actorsEnabled enable switch of actors
-     */
-    function setActorsEnabled(bool _actorsEnabled) external;
+    function recover(address newOwner) external;
 
     /**
      * @notice Adds a new actor that could arbitrarely call external contracts. If specific permission logic (e.g. ACL), it can be implemented in the actor's address contract logic.
      * @param newActor a new actor to be added.
      */
-    function addActor(address newActor) external;
-
-    /**
-     * @notice Removes an actor
-     * @param index position of actor in the `actors()` array list.
-     */
-    function removeActor(uint256 index) external;
+    function setActor(address _actor) external;
 
     /**
      * @notice Replace owner address.

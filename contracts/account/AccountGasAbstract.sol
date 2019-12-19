@@ -9,11 +9,12 @@ import "../gasrelay/GasRelay.sol";
  * @notice defines account gas abstract
  */
 contract AccountGasAbstract is Account, GasRelay {
+    string internal constant ERR_INVALID_SIGNATURE = "Invalid signature";
 
     modifier gasRelay(
         bytes memory _execData,
-        uint _gasPrice,
-        uint _gasLimit,
+        uint256 _gasPrice,
+        uint256 _gasLimit,
         address _gasToken,
         address payable _gasRelayer,
         bytes memory _signature
@@ -21,259 +22,100 @@ contract AccountGasAbstract is Account, GasRelay {
         //query current gas available
         uint startGas = gasleft();
 
-        //verify transaction parameters
-        require(startGas >= _gasLimit, ERR_BAD_START_GAS);
-
         //verify if signatures are valid and came from correct actor;
         require(
             isValidSignature(
-                abi.encodePacked(
-                    address(this),
+                executeGasRelayMsg(
+                    nonce,
                     _execData,
                     _gasPrice,
                     _gasLimit,
-                    _gasToken
+                    _gasToken,
+                    _gasRelayer
                 ),
                 _signature
             ) == MAGICVALUE,
-            ERR_BAD_SIGNER
+            ERR_INVALID_SIGNATURE
         );
 
         _;
 
         //refund gas used using contract held ERC20 tokens or ETH
-        payGasRelayer(
-            startGas,
-            _gasPrice,
-            _gasLimit,
-            _gasToken,
-            _gasRelayer
-        );
-    }
-
-    /**
-     * @notice include ethereum signed callHash in return of gas proportional amount multiplied by `_gasPrice` of `_gasToken`
-     *         allows identity of being controlled without requiring ether in key balace
-     * @param _to destination of call
-     * @param _value call value (ether)
-     * @param _data call data
-     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
-     * @param _gasLimit maximum gas of this transacton
-     * @param _gasToken token being used for paying `msg.sender`
-     * @param _signature rsv concatenated ethereum signed message signatures required
-     */
-    function callGasRelay(
-        address _to,
-        uint256 _value,
-        bytes calldata _data,
-        uint _gasPrice,
-        uint _gasLimit,
-        address _gasToken,
-        bytes calldata _signature
-    )
-        external
-        gasRelay(
-            abi.encodePacked(
-                MSG_CALL_GASRELAY_PREFIX,
-                _to,
-                _value,
-                _data,
-                nonce,
-                msg.sender
-            ),
-            _gasPrice,
-            _gasLimit,
-            _gasToken,
-            msg.sender,
-            _signature
-        )
-    {
-        _call(_to, _value, _data, _gasLimit);
-    }
-
-
-    /**
-     * @notice deploys contract in return of gas proportional amount multiplied by `_gasPrice` of `_gasToken`
-     *         allows identity of being controlled without requiring ether in key balace
-     * @param _value call value (ether) to be sent to newly created contract
-     * @param _data contract code data
-     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
-     * @param _gasLimit maximum gas of this transacton
-     * @param _gasToken token being used for paying `msg.sender`
-     * @param _signature rsv concatenated ethereum signed message signatures required
-     */
-    function deployGasRelay(
-        uint256 _value,
-        bytes calldata _data,
-        uint _gasPrice,
-        uint _gasLimit,
-        address _gasToken,
-        bytes calldata _signature
-    )
-        external
-        gasRelay(
-            abi.encodePacked(
-                MSG_DEPLOY_GASRELAY_PREFIX,
-                _value,
-                _data,
-                nonce,
-                msg.sender
-            ),
-            _gasPrice,
-            _gasLimit,
-            _gasToken,
-            msg.sender,
-            _signature
-        )
-    {
-        _create(_value, _data);
-    }
-
-    /**
-     * @notice include ethereum signed approve ERC20 and call hash
-     *         (`ERC20Token(baseToken).approve(_to, _value)` + `_to.call(_data)`).
-     *         in return of gas proportional amount multiplied by `_gasPrice` of `_baseToken`
-     *         fixes race condition in double transaction for ERC20.
-     * @param _baseToken token approved for `_to` and token being used for paying `msg.sender`
-     * @param _to destination of call
-     * @param _value call value (in `_baseToken`)
-     * @param _data call data
-     * @param _gasPrice price in SNT paid back to `msg.sender` per gas unit used
-     * @param _gasLimit maximum gas of this transacton
-     * @param _signature rsv concatenated ethereum signed message signatures required
-     */
-    function approveAndCallGasRelay(
-        address _baseToken,
-        address _to,
-        uint256 _value,
-        bytes calldata _data,
-        uint _gasPrice,
-        uint _gasLimit,
-        bytes calldata _signature
-    )
-        external
-        gasRelay(
-            abi.encodePacked(
-                MSG_APPROVEANDCALL_GASRELAY_PREFIX,
-                _baseToken,
-                _to,
-                _value,
-                _data,
-                nonce,
-                msg.sender
-            ),
-            _gasPrice,
-            _gasLimit,
-            _baseToken,
-            msg.sender,
-            _signature
-        )
-    {
-        _approveAndCall(_baseToken, _to, _value, _data, _gasLimit);
-    }
-
-
-    function executeSigned(
-        address _to,
-        uint256 _value,
-        bytes memory _data,
-        uint _nonce,
-        uint _gasPrice,
-        uint _gasLimit,
-        address _gasToken,
-        OperationType _operationType,
-        bytes memory _signature
-    )
-        public
-        gasRelay(
-            abi.encodePacked(
-                _to,
-                _value,
-                keccak256(_data),
-                _nonce,
-                _operationType
-            ),
-            _gasPrice,
-            _gasLimit,
-            _gasToken,
-            msg.sender,
-            _signature
-        )
-        returns (bytes32)
-    {
-        require(nonce == _nonce, ERR_BAD_NONCE);
-
-        if(_operationType == OperationType.CALL){
-            _call(_to, _value,_data, _gasLimit);
-        } else if(_operationType == OperationType.APPROVEANDCALL){
-            _approveAndCall(_gasToken, _to, _value, _data, _gasLimit);
-        } else if(_operationType == OperationType.CREATE){
-            _create(_value, _data);
-        } else {
-            revert("Not implemented");
+        if (_gasPrice > 0) {
+            payGasRelayer(
+                startGas,
+                _gasPrice,
+                _gasToken,
+                _gasRelayer
+            );
         }
     }
 
-    function canExecute(
-        address _to,
-        uint256 _value,
-        bytes memory _data,
-        uint _nonce,
-        uint _gasPrice,
-        uint _gasLimit,
+    function executeGasRelay(
+        bytes calldata _execData,
+        uint256 _gasPrice,
+        uint256 _gasLimit,
         address _gasToken,
-        OperationType _operationType,
+        bytes calldata _signature
+    )
+        external
+        gasRelay(
+            _execData,
+            _gasPrice,
+            _gasLimit,
+            _gasToken,
+            msg.sender,
+            _signature
+        )
+    {
+        address(this).call.gas(_gasLimit)(_execData);
+    }
+
+    function canExecute(
+        bytes memory _execData,
+        uint256 _gasPrice,
+        uint256 _gasLimit,
+        address _gasToken,
+        address _gasRelayer,
         bytes memory _signature
     )
         public
         view
         returns (bool)
     {
-        return (
-            isValidSignature(
-                abi.encodePacked(
-                    address(this),
-                    _to,
-                    _value,
-                    keccak256(_data),
-                    _nonce,
-                    _operationType,
-                    _gasPrice,
-                    _gasLimit,
-                    _gasToken
-                ),
-                _signature
-            ) == MAGICVALUE
-        );
-
+        return isValidSignature(
+            executeGasRelayMsg(
+                nonce,
+                _execData,
+                _gasPrice,
+                _gasLimit,
+                _gasToken,
+                _gasRelayer
+            ),
+            _signature
+        ) == MAGICVALUE;
     }
 
     /**
      * @notice check gas limit and pays gas to relayer
      * @param _startGas gasleft on call start
      * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
-     * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `_gasRelayer`
      * @param _gasRelayer beneficiary of the payout
      */
     function payGasRelayer(
         uint256 _startGas,
-        uint _gasPrice,
-        uint _gasLimit,
+        uint256 _gasPrice,
         address _gasToken,
         address payable _gasRelayer
     )
         internal
     {
-        uint256 _amount = 21000 + (_startGas - gasleft());
-        require(_gasLimit == 0 || _amount <= _gasLimit, ERR_GAS_LIMIT_EXCEEDED);
-        if (_gasPrice > 0) {
-            _amount = _amount * _gasPrice;
-            if (_gasToken == address(0)) {
-                _gasRelayer.transfer(_amount);
-            } else {
-                ERC20Token(_gasToken).transfer(_gasRelayer, _amount);
-            }
+        uint256 _amount = (100000 + (_startGas - gasleft()) * _gasPrice);
+        if (_gasToken == address(0)) {
+            _gasRelayer.call.value(_amount)("");
+        } else {
+            ERC20Token(_gasToken).transfer(_gasRelayer, _amount);
         }
     }
 }

@@ -21,8 +21,8 @@ contract UserAccountInterface is ERC725, Signer {
     function recover(address newOwner) external;
 
     /**
-     * @notice Adds a new actor that could arbitrarely call external contracts. If specific permission logic (e.g. ACL), it can be implemented in the actor's address contract logic.
-     * @param newActor a new actor to be added.
+     * @notice Changes actor contract
+     * @param _actor Contract which can call actions from this contract
      */
     function setActor(address _actor) external;
 

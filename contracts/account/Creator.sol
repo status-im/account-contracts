@@ -50,4 +50,17 @@ contract Creator {
         }
     }
 
+    function _computeContractAddress(bytes memory _code, bytes32 _salt) internal view returns (address _contractAddress) {
+        bytes32 _data = keccak256(
+            abi.encodePacked(
+                bytes1(0xff),
+                address(this),
+                _salt,
+                _code
+            )
+        );
+
+        _contractAddress = address(bytes20(_data << 96));
+    }
+
 }

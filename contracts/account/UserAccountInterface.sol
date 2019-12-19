@@ -9,30 +9,6 @@ import "./Signer.sol";
 contract UserAccountInterface is ERC725, Signer {
 
     /**
-     * @notice Defines recoveryContract address.
-     * @param _recovery address of recoveryContract contract
-     */
-    function setRecovery(address _recovery) external;
-
-    /**
-     * @notice Defines the new owner and disable actor. Can only be called by recovery.
-     * @param newOwner an ERC1271 contract
-     */
-    function recover(address newOwner) external;
-
-    /**
-     * @notice Changes actor contract
-     * @param _actor Contract which can call actions from this contract
-     */
-    function setActor(address _actor) external;
-
-    /**
-     * @notice Replace owner address.
-     * @param newOwner address of externally owned account or ERC1271 contract to control this account
-     */
-    function changeOwner(address newOwner) external;
-
-    /**
      * @notice calls another contract
      * @param _to destination of call
      * @param _value call ether value (in wei)
@@ -91,4 +67,28 @@ contract UserAccountInterface is ERC725, Signer {
     )
         external
         returns(address createdContract);
+
+    /**
+     * @notice Defines recoveryContract address.
+     * @param _recovery address of recoveryContract contract
+     */
+    function setRecovery(address _recovery) external;
+
+    /**
+     * @notice Changes actor contract
+     * @param _actor Contract which can call actions from this contract
+     */
+    function setActor(address _actor) external;
+
+    /**
+     * @notice Replace owner address.
+     * @param newOwner address of externally owned account or ERC1271 contract to control this account
+     */
+    function changeOwner(address newOwner) external;
+
+    /**
+     * @notice Defines the new owner and disable actor. Can only be called by recovery.
+     * @param newOwner an ERC1271 contract
+     */
+    function recover(address newOwner) external;
 }

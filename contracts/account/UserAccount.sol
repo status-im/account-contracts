@@ -12,17 +12,19 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     string internal constant ERR_BAD_PARAMETER = "Bad parameter";
     string internal constant ERR_UNAUTHORIZED = "Unauthorized";
     string internal constant ERR_CREATE_FAILED = "Contract creation failed";
-    uint256 constant OPERATION_CALL = 0;
-    uint256 constant OPERATION_CREATE = 1;
     mapping(bytes32 => bytes) store;
 
     address public owner;
     address public recovery;
     address public actor;
 
-    constructor() public {
-        
+    constructor(address _owner, address _actor, address _recovery) public {
+        require(_owner != address(0), ERR_BAD_PARAMETER);
+        owner = _owner;
+        actor = _actor;
+        recovery = _recovery;
     }
+
     /**
      * Allow only calls from itself or directly from owner
      */
@@ -107,6 +109,21 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
     {
         require(newOwner != address(0), ERR_BAD_PARAMETER);
         owner = newOwner;
+    }
+
+    /**
+     * @notice ERC725 universal execute interface
+     * @param _execData data to be executed in this contract
+     * @return success status and return data
+     */
+    function execute(
+        bytes calldata _execData
+    )
+        external
+        management
+        returns (bool success, bytes memory returndata)
+    {
+        (success, returndata) = address(this).call(_execData);
     }
 
     /**

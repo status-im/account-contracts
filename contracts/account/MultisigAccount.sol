@@ -54,7 +54,7 @@ contract MultisigAccount is Account {
             ) == MAGICVALUE,
             ERR_BAD_SIGNER
         );
-        (success, returndata) = _to.call.value(_value)(_data);
+        (success, returndata) = _call(_to, _value, _data);
     }
 
     function setKey(address key, bool isValid) external self {

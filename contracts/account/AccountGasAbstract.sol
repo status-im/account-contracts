@@ -1,7 +1,6 @@
 pragma solidity >=0.5.0 <0.6.0;
 
 import "./Account.sol";
-import "../cryptography/ECDSA.sol";
 import "../gasrelay/GasRelay.sol";
 
 /**
@@ -26,18 +25,13 @@ contract AccountGasAbstract is Account, GasRelay {
         //verify if signatures are valid and came from correct actor;
         require(
             isValidSignature(
-                abi.encodePacked(
-                    ECDSA.toERC191SignedMessage(
-                        address(this),
-                        executeGasRelayMsg(
-                            nonce,
-                            _execData,
-                            _gasPrice,
-                            _gasLimit,
-                            _gasToken,
-                            _gasRelayer
-                        )
-                    )
+                executeGasRelayERC191Msg(
+                    nonce,
+                    _execData,
+                    _gasPrice,
+                    _gasLimit,
+                    _gasToken,
+                    _gasRelayer
                 ),
                 _signature
             ) == MAGICVALUE,

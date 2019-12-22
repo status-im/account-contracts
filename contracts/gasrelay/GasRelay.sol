@@ -1,5 +1,5 @@
 pragma solidity >=0.5.0 <0.6.0;
-
+import "../cryptography/ECDSA.sol";
 /**
  * @title GasRelay
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
@@ -29,16 +29,53 @@ contract GasRelay {
         bytes calldata _signature
     )
         external;
-
+    
     /**
-     * @notice get signing message for executeGasRelay function.
+     * @notice gets ERC191 signing Hash of execute gas relay message
      * @param _nonce current account nonce
      * @param _execData execution data (anything)
      * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
      * @param _gasLimit maximum gas of this transacton
      * @param _gasToken token being used for paying `_gasRelayer`
      * @param _gasRelayer beneficiary of gas refund
-     * @return executeGasRelayMsg the message to be signed
+     * @return executeGasRelayERC191Hash the message to be signed
+     */
+    function executeGasRelayERC191Msg(
+        uint256 _nonce,
+        bytes memory _execData,
+        uint256 _gasPrice,
+        uint256 _gasLimit,
+        address _gasToken,
+        address _gasRelayer
+    )
+        public
+        view
+        returns (bytes memory)
+    {
+        return abi.encodePacked(
+            ECDSA.toERC191SignedMessage(
+                address(this),
+                executeGasRelayMsg(
+                    _nonce,
+                    _execData,
+                    _gasPrice,
+                    _gasLimit,
+                    _gasToken,
+                    _gasRelayer
+                )
+            )
+        );
+    }
+
+    /**
+     * @notice get message for executeGasRelay function.
+     * @param _nonce current account nonce
+     * @param _execData execution data (anything)
+     * @param _gasPrice price in `_gasToken` paid back to `_gasRelayer` per gas unit used
+     * @param _gasLimit maximum gas of this transacton
+     * @param _gasToken token being used for paying `_gasRelayer`
+     * @param _gasRelayer beneficiary of gas refund
+     * @return executeGasRelayMsg the appended message
      */
     function executeGasRelayMsg(
         uint256 _nonce,
@@ -62,4 +99,5 @@ contract GasRelay {
             _gasRelayer
         );
     }
+
 }

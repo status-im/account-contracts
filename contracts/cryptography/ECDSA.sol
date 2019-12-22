@@ -78,7 +78,7 @@ library ECDSA {
         // 32 is the length in bytes of hash,
         // enforced by the type signature above
         //return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
-        return toERC191SignedMessage(byte("E"), bytes("thereum Signed Message:\n32"), abi.encodePacked(hash));
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
     }
 
     /**
@@ -89,15 +89,22 @@ library ECDSA {
      *
      * See {recover}.
      */
-    function toERC191SignedMessage(bytes memory data) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(byte(0x19), byte(0x0), data));
-    }
-
-    function toERC191SignedMessage(byte version, bytes memory data) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(byte(0x19), version, data));
+    function toERC191SignedMessage(address _validator, bytes memory data) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(byte(0x19), byte(0x0), _validator, data));
     }
 
     function toERC191SignedMessage(byte version, bytes memory versionData, bytes memory data) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(byte(0x19), version, versionData, data));
     }
+    /**
+    * @notice Transform public key to address
+    * @param _publicKey secp256k1 public key
+    **/
+    function toAddress(bytes memory _publicKey) internal pure returns (address payable) {
+        return address(uint160(uint256(keccak256(_publicKey))));
+    }
+
+    
 }
+
+

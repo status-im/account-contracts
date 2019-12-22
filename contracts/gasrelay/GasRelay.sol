@@ -49,11 +49,10 @@ contract GasRelay {
         address _gasRelayer
     )
         public
-        view
+        pure
         returns (bytes memory)
     {
         return abi.encodePacked(
-            address(this),
             _nonce,
             MSG_EXECUTE_GASRELAY_PREFIX,
             _execData,

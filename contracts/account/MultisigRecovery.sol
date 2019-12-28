@@ -206,7 +206,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     )
         external
     {
-        bytes32 signatureHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(publicHash, _secretCall));
+        bytes32 signatureHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), publicHash, _secretCall));
         require(_signer != address(0), "Invalid signer");
         require(
             (
@@ -215,7 +215,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
             "Invalid signature");
         approveExecution(_secretCall, _signer, _ensNode, _peerHash, _proof);
     }
-
+s
     /**
      * @notice executes an approved transaction revaling publicHash hash, friends addresses and set new recovery parameters
      * @param _executeHash Seed of `peerHash`
@@ -233,7 +233,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     {
         require(publicHash != bytes32(0), "Recovery not set");
         uint256 _threshold = _leafList.length;
-        bytes32 peerHash = keccak256(abi.encodePacked(_executeHash, _getChainID()));
+        bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
         require(publicHash == keccak256(abi.encodePacked(peerHash)), "Invalid secret");
         require(secretThresholdHash == keccak256(abi.encodePacked(_executeHash, _threshold)), "Invalid threshold");
         revealed[publicHash] = true;

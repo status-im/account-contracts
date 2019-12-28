@@ -206,16 +206,16 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     )
         external
     {
-        bytes32 signatureHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), publicHash, _secretCall));
+        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), publicHash, _secretCall));
         require(_signer != address(0), "Invalid signer");
         require(
             (
-                isContract(_signer) && Signer(_signer).isValidSignature(abi.encodePacked(_secretCall), _signature) == EIP1271_MAGICVALUE
-            ) || ECDSA.recover(signatureHash, _signature) == _signer,
+                isContract(_signer) && Signer(_signer).isValidSignature(abi.encodePacked(signingHash), _signature) == EIP1271_MAGICVALUE
+            ) || ECDSA.recover(signingHash, _signature) == _signer,
             "Invalid signature");
         approveExecution(_secretCall, _signer, _ensNode, _peerHash, _proof);
     }
-s
+
     /**
      * @notice executes an approved transaction revaling publicHash hash, friends addresses and set new recovery parameters
      * @param _executeHash Seed of `peerHash`

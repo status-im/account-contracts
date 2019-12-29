@@ -10,56 +10,29 @@ import "../ens/ENS.sol";
 import "../ens/ResolverInterface.sol";
 
 /**
- * @notice Select privately other accounts that will allow the execution of actions
+ * @notice Select privately other accounts that will allow the execution of actions (ERC-2429 compilant)
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  */
 contract MultisigRecovery is Controlled, TokenClaimer {
+    //Needed for EIP-1271 check
     bytes4 constant internal EIP1271_MAGICVALUE = 0x20c13b0b;
+    //Needed for ENS leafs
     ENS ens;
-    /** # User Secret Data Public Hash
-     * Hash of the hash of Semi-private information, such as a "randomly ordered personal information + secret answer", or user biometric data.
-     * The secret should only be revaled together with `execute`, which requires changing the secret at every execution.
-     * Contract is configured with a hash of a hash of this personal data hash. `keccak256(keccak256(user_secret_data)).
-     * If case of using personal information, a form containing several fields of optional data, where, must be written only things that you can always know, but is not completely or usually public.
-     * Some of this fields would be used to create tthe user data hash, when recovering user would have to enter the same fields again and automatically will try all combinations with that data until find whats used for the secret.
-     * Example of an publicHash: keccak256("Alice Pleasance Liddell;1852-04-04;Lorina Hanna Liddell;England;Name of important childhood friend?Dodgson")
-     * If case of user biometric data, most of sensors should be able to give more then one result for the same repetable reading for the same finger, or just a part of it is used.
-     * When revealed, a different secret is needed, then another of that results from the biometric sensor.
-     */
-    bytes32 public publicHash;
-
-    /** # Secret Threshold Hash
-     * A hash of threshold (number of allowances needed to execute) hashed together with the "User Secret Data Hash"
-     * Example: `keccak256(publicHash, threshold)`
-     * Threshold number is revealed in execute, together with the "Secret User Data Hash" and its verified against what is configured in contract.
-     * Threshold can be easily figured out if the Secret User Data Hash is known.
-     */
-    bytes32 public secretThresholdHash;
-
-    /** # Secret Addresses Merkle Root
-     * Each address is hashed against a hash of "User Secret Data Hash" (`kecakk256(keccak256(publicHash), friendAddress)` and a merkle tree is build in top of the dataset.
-     * Addresses in this merkle tree would be able to approve a call for anything if they know the Hash of the "User Secret Data Hash".
-     */
-    bytes32 public addressListMerkleRoot;
-
-    /** # Setup Delay
-     * Amount of time delay needed to activate a new recovery setup
-     */
-    uint256 public setupDelay;
-
     //flag for used recoveries (user need to define a different publicHash every execute)
     mapping(bytes32 => bool) private revealed;
-    //flag to prevent resigning
+    //flag to prevent leafs form resigning
     mapping(bytes32 => mapping(bytes32 => bool)) private signed;
-    //storage for pending delayed setup
-    NewRecovery private pendingSetup;
+    //storage for pending setup
+    RecoverySet private pending;
+    //storage for active recovery
+    RecoverySet public active;
 
-    struct NewRecovery {
-        uint256 timestamp;
+    struct RecoverySet {
         bytes32 publicHash;
         bytes32 secretThresholdHash;
         bytes32 addressListMerkleRoot;
         uint256 setupDelay;
+        uint256 timestamp;
     }
 
     event SetupRequested(uint256 activation);
@@ -93,10 +66,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     {
         ens = _ens;
         controller = _controller;
-        secretThresholdHash = _secretThresholdHash;
-        publicHash = _publicHash;
-        addressListMerkleRoot = _addressListMerkleRoot;
-        setupDelay = _setupDelay;
+        active = RecoverySet(_publicHash, _secretThresholdHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
     }
 
     /**
@@ -119,7 +89,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
         external
         onlyController
     {
-        delete pendingSetup;
+        delete pending;
         emit SetupRequested(0);
     }
 
@@ -140,19 +110,13 @@ contract MultisigRecovery is Controlled, TokenClaimer {
         onlyController
         notRevealed(_publicHash)
     {
-        if(publicHash == bytes32(0)){
-            secretThresholdHash = _secretThresholdHash;
-            publicHash = _publicHash;
-            addressListMerkleRoot = _addressListMerkleRoot;
-            setupDelay = _setupDelay;
+        RecoverySet memory newSet = RecoverySet(_publicHash, _secretThresholdHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
+        if(active.publicHash == bytes32(0)){
+            active = newSet;
             emit Activated();
         } else {
-            pendingSetup.timestamp = block.timestamp;
-            pendingSetup.publicHash = _publicHash;
-            pendingSetup.addressListMerkleRoot = _addressListMerkleRoot;
-            pendingSetup.secretThresholdHash = _secretThresholdHash;
-            pendingSetup.setupDelay = _setupDelay;
-            emit SetupRequested(block.timestamp + setupDelay);
+            pending = newSet;
+            emit SetupRequested(block.timestamp + active.setupDelay);
         }
 
     }
@@ -163,13 +127,10 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     function activate()
         external
     {
-        require(pendingSetup.timestamp > 0, "No pending setup");
-        require(pendingSetup.timestamp + setupDelay <= block.timestamp, "Waiting delay");
-        secretThresholdHash = pendingSetup.secretThresholdHash;
-        setupDelay = pendingSetup.setupDelay;
-        publicHash = pendingSetup.publicHash;
-        addressListMerkleRoot = pendingSetup.addressListMerkleRoot;
-        delete pendingSetup;
+        require(pending.timestamp > 0, "No pending setup");
+        require(pending.timestamp + active.setupDelay <= block.timestamp, "Waiting delay");
+        active = pending;
+        delete pending;
         emit Activated();
     }
 
@@ -206,7 +167,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     )
         external
     {
-        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), publicHash, _secretCall));
+        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), active.publicHash, _secretCall));
         require(_signer != address(0), "Invalid signer");
         require(
             (
@@ -231,12 +192,12 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     )
         external
     {
-        require(publicHash != bytes32(0), "Recovery not set");
+        require(active.publicHash != bytes32(0), "Recovery not set");
         uint256 _threshold = _leafList.length;
         bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
-        require(publicHash == keccak256(abi.encodePacked(peerHash)), "Invalid secret");
-        require(secretThresholdHash == keccak256(abi.encodePacked(_executeHash, _threshold)), "Invalid threshold");
-        revealed[publicHash] = true;
+        require(active.publicHash == keccak256(abi.encodePacked(peerHash)), "Invalid secret");
+        require(active.secretThresholdHash == keccak256(abi.encodePacked(_executeHash, _threshold)), "Invalid threshold");
+        revealed[active.publicHash] = true;
 
         bytes32 callHash = keccak256(
             abi.encodePacked(
@@ -253,10 +214,8 @@ contract MultisigRecovery is Controlled, TokenClaimer {
             delete signed[callHash][leaf];
         }
 
-        delete publicHash;
-        delete secretThresholdHash;
-        delete addressListMerkleRoot;
-        delete pendingSetup;
+        delete active;
+        delete pending;
         bool success;
         (success, ) = _dest.call(_data);
         emit Execution(success);
@@ -281,7 +240,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
         } else {
             leaf = keccak256(abi.encodePacked(_peerHash, _signer));
         }
-        require(MerkleProof.verify(_proof, addressListMerkleRoot, leaf), "Invalid proof");
+        require(MerkleProof.verify(_proof, active.addressListMerkleRoot, leaf), "Invalid proof");
         require(!signed[_secretCall][leaf], "Already approved");
         signed[_secretCall][leaf] = true;
         emit Approved(_secretCall, _signer);

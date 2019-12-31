@@ -201,7 +201,6 @@ contract MultisigRecovery is Controlled, TokenClaimer {
 
         bytes32 callHash = keccak256(
             abi.encodePacked(
-                address(this),
                 _executeHash,
                 _dest,
                 _data

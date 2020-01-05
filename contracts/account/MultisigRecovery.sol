@@ -16,20 +16,23 @@ import "../ens/ResolverInterface.sol";
 contract MultisigRecovery is Controlled, TokenClaimer {
     //Needed for EIP-1271 check
     bytes4 constant internal EIP1271_MAGICVALUE = 0x20c13b0b;
+    //threshold constant
+    uint256 public constant THRESHOLD = 100 * 10^18;
     //Needed for ENS leafs
-    ENS ens;
+    ENS public ens;
     //flag for used recoveries (user need to define a different publicHash every execute)
-    mapping(bytes32 => bool) private revealed;
+    mapping(bytes32 => bool) public revealed;
     //flag to prevent leafs form resigning
-    mapping(bytes32 => mapping(bytes32 => bool)) private signed;
+    mapping(bytes32 => mapping(bytes32 => bool)) public signed;
+    //counts approvals
+    mapping(bytes32 => uint256) public approved;
     //storage for pending setup
-    RecoverySet private pending;
+    RecoverySet public pending;
     //storage for active recovery
     RecoverySet public active;
 
     struct RecoverySet {
         bytes32 publicHash;
-        bytes32 secretThresholdHash;
         bytes32 addressListMerkleRoot;
         uint256 setupDelay;
         uint256 timestamp;
@@ -37,7 +40,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
 
     event SetupRequested(uint256 activation);
     event Activated();
-    event Approved(bytes32 indexed secretHash, address approver);
+    event Approved(bytes32 indexed secretHash, address approver, uint256 weight);
     event Execution(bool success);
 
     modifier notRevealed(bytes32 secretHash) {
@@ -57,7 +60,6 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     constructor(
         address payable _controller,
         ENS _ens,
-        bytes32 _secretThresholdHash,
         bytes32 _publicHash,
         bytes32 _addressListMerkleRoot,
         uint256 _setupDelay
@@ -66,7 +68,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     {
         ens = _ens;
         controller = _controller;
-        active = RecoverySet(_publicHash, _secretThresholdHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
+        active = RecoverySet(_publicHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
     }
 
     /**
@@ -103,14 +105,13 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     function setup(
         bytes32 _publicHash,
         uint256 _setupDelay,
-        bytes32 _secretThresholdHash,
         bytes32 _addressListMerkleRoot
     )
         external
         onlyController
         notRevealed(_publicHash)
     {
-        RecoverySet memory newSet = RecoverySet(_publicHash, _secretThresholdHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
+        RecoverySet memory newSet = RecoverySet(_publicHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
         if(active.publicHash == bytes32(0)){
             active = newSet;
             emit Activated();
@@ -138,20 +139,28 @@ contract MultisigRecovery is Controlled, TokenClaimer {
      * @notice Approves a recovery.
      * This method is important for when the address is an contract and dont implements EIP1271.
      * @param _peerHash seed of `publicHash`
+     * @param _weight Amount of weight from the signature
      * @param _secretCall Hash of the recovery call
      * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
      * @param _ensNode if present, the _proof is checked against _ensNode.
      */
-    function approve(bytes32 _peerHash, bytes32 _secretCall, bytes32[] calldata _proof, bytes32 _ensNode)
+    function approve(
+        bytes32 _peerHash,
+        uint256 _weight,
+        bytes32 _secretCall,
+        bytes32[] calldata _proof,
+        bytes32 _ensNode
+    )
         external
     {
-        approveExecution(_secretCall, msg.sender, _ensNode, _peerHash, _proof);
+        approveExecution(_secretCall, msg.sender, _ensNode, _peerHash, _weight, _proof);
     }
 
     /**
      * @notice Approve a recovery using an ethereum signed message
      * @param _signer address of _signature processor. if _signer is a contract, must be ERC1271.
      * @param _peerHash seed of `publicHash`
+     * @param _weight Amount of weight from the signature
      * @param _secretCall Hash of the recovery call
      * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
      * @param _signature ERC191 signature
@@ -160,6 +169,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     function approvePreSigned(
         address _signer,
         bytes32 _peerHash,
+        uint256 _weight,
         bytes32 _secretCall,
         bytes32[] calldata _proof,
         bytes calldata _signature,
@@ -174,7 +184,7 @@ contract MultisigRecovery is Controlled, TokenClaimer {
                 isContract(_signer) && Signer(_signer).isValidSignature(abi.encodePacked(signingHash), _signature) == EIP1271_MAGICVALUE
             ) || ECDSA.recover(signingHash, _signature) == _signer,
             "Invalid signature");
-        approveExecution(_secretCall, _signer, _ensNode, _peerHash, _proof);
+        approveExecution(_secretCall, _signer, _ensNode, _peerHash, _weight, _proof);
     }
 
     /**
@@ -182,21 +192,17 @@ contract MultisigRecovery is Controlled, TokenClaimer {
      * @param _executeHash Seed of `peerHash`
      * @param _dest Address will be called
      * @param _data Data to be sent
-     * @param _leafList leafs that approved callHash
      */
     function execute(
         bytes32 _executeHash,
         address _dest,
-        bytes calldata _data,
-        bytes32[] calldata _leafList
+        bytes calldata _data
     )
         external
     {
         require(active.publicHash != bytes32(0), "Recovery not set");
-        uint256 _threshold = _leafList.length;
         bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
         require(active.publicHash == keccak256(abi.encodePacked(peerHash)), "Invalid secret");
-        require(active.secretThresholdHash == keccak256(abi.encodePacked(_executeHash, _threshold)), "Invalid threshold");
         revealed[active.publicHash] = true;
 
         bytes32 callHash = keccak256(
@@ -207,11 +213,8 @@ contract MultisigRecovery is Controlled, TokenClaimer {
             )
         );
 
-        for (uint256 i = 0; i < _threshold; i++) {
-            bytes32 leaf = _leafList[i];
-            require(leaf != bytes32(0) && signed[callHash][leaf], "Invalid signer");
-            delete signed[callHash][leaf];
-        }
+        require(approved[callHash] > THRESHOLD, "Invalid threshold");
+        delete approved[callHash];
 
         delete active;
         delete pending;
@@ -225,24 +228,31 @@ contract MultisigRecovery is Controlled, TokenClaimer {
      * @param _peerHash seed of `publicHash`
      * @param _secretCall Hash of the recovery call
      * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
+     * @param _weight Amount of weight from the signature
      * @param _ensNode if present, the _proof is checked against _ensName.
      */
-    function approveExecution(bytes32 _secretCall, address _signer, bytes32 _ensNode, bytes32 _peerHash, bytes32[] memory _proof) internal {
-        bytes32 leaf;
-        if(_ensNode != bytes32(0)) {
-            leaf = keccak256(abi.encodePacked(_peerHash, _ensNode));
+    function approveExecution(
+        bytes32 _secretCall,
+        address _signer,
+        bytes32 _ensNode,
+        bytes32 _peerHash,
+        uint256 _weight,
+        bytes32[] memory _proof
+    ) internal {
+        bool isENS = _ensNode != bytes32(0);
+        bytes32 leaf = keccak256(abi.encodePacked(_peerHash, _weight, isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
+        require(!signed[_secretCall][leaf], "Already approved");
+        require(MerkleProof.verify(_proof, active.addressListMerkleRoot, leaf), "Invalid proof");
+        if(isENS) {
             require(
                 _signer == ens.owner(_ensNode) ||
                 _signer == ResolverInterface(ens.resolver(_ensNode)).addr(_ensNode),
                 "Invalid ENS entry"
             );
-        } else {
-            leaf = keccak256(abi.encodePacked(_peerHash, _signer));
         }
-        require(MerkleProof.verify(_proof, active.addressListMerkleRoot, leaf), "Invalid proof");
-        require(!signed[_secretCall][leaf], "Already approved");
         signed[_secretCall][leaf] = true;
-        emit Approved(_secretCall, _signer);
+        approved[_secretCall] += _weight;
+        emit Approved(_secretCall, _signer, _weight);
     }
 
     /**

@@ -240,16 +240,16 @@ contract MultisigRecovery is Controlled, TokenClaimer {
         bytes32[] memory _proof
     ) internal {
         bool isENS = _ensNode != bytes32(0);
-        bytes32 leaf = keccak256(abi.encodePacked(_peerHash, _weight, isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
-        require(!signed[_secretCall][leaf], "Already approved");
-        require(MerkleProof.verify(_proof, active.addressListMerkleRoot, leaf), "Invalid proof");
-        if(isENS) {
-            require(
+        require(
+            !isENS || (
                 _signer == ens.owner(_ensNode) ||
-                _signer == ResolverInterface(ens.resolver(_ensNode)).addr(_ensNode),
-                "Invalid ENS entry"
-            );
-        }
+                _signer == ResolverInterface(ens.resolver(_ensNode)).addr(_ensNode)
+            ),
+            "Invalid ENS entry"
+        );
+        bytes32 leaf = keccak256(abi.encodePacked(_peerHash, _weight, isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
+        require(MerkleProof.verify(_proof, active.addressListMerkleRoot, leaf), "Invalid proof");
+        require(!signed[_secretCall][leaf], "Already approved");
         signed[_secretCall][leaf] = true;
         approved[_secretCall] += _weight;
         emit Approved(_secretCall, _signer, _weight);

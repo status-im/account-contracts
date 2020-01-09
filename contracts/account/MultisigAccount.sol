@@ -1,4 +1,4 @@
-pragma solidity >=0.5.0 <0.6.0;
+pragma solidity >=0.5.0 <0.7.0;
 
 import "../account/Account.sol";
 import "../cryptography/ECDSA.sol";
@@ -88,7 +88,7 @@ contract MultisigAccount is Account {
         uint8 v;
         bytes32 r;
         bytes32 s;
-        bytes32 dataHash = ECDSA.toERC191SignedMessage(_data);
+        bytes32 dataHash = ECDSA.toERC191SignedMessage(address(this), _data);
         for (uint256 i = 0; i < _amountSignatures; i++) {
             /* solium-disable-next-line security/no-inline-assembly*/
             assembly {

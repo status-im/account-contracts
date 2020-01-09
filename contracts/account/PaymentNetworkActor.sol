@@ -1,4 +1,4 @@
-pragma solidity >=0.5.0 <0.6.0;
+pragma solidity >=0.5.0 <0.7.0;
 
 import "../cryptography/ECDSA.sol";
 import "../token/ERC20Token.sol";
@@ -54,7 +54,7 @@ contract PaymentNetworkActor is Controlled {
         require(keycard != address(0), "keycard address not set");
 
         // check that the _hashToSign has been produced with the nonce, to, and value
-        bytes32 expectedHash = ECDSA.toERC191SignedMessage(0x00, abi.encodePacked(address(this), _nonce, _token, _to, _value));
+        bytes32 expectedHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_nonce, _token, _to, _value));
         require(expectedHash == _hashToSign, "signed params are different");
 
         // check that the _hashToSign has been signed by the keycard

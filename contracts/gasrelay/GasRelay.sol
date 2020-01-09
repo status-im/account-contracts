@@ -29,6 +29,8 @@ contract GasRelay {
         bytes calldata _signature
     )
         external;
+
+    function lastNonce() public view returns (uint nonce);
     
     /**
      * @notice gets ERC191 signing Hash of execute gas relay message

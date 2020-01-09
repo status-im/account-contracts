@@ -95,6 +95,10 @@ contract AccountGasAbstract is Account, GasRelay {
             _signature
         ) == MAGICVALUE;
     }
+    
+    function lastNonce() public view returns (uint256) {
+        return nonce;
+    }
 
     /**
      * @notice check gas limit and pays gas to relayer

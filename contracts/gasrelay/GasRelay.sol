@@ -90,6 +90,7 @@ contract GasRelay {
         returns (bytes memory)
     {
         return abi.encodePacked(
+            _getChainID(),
             MSG_EXECUTE_GASRELAY_PREFIX,
             _nonce,
             _execData,
@@ -98,6 +99,17 @@ contract GasRelay {
             _gasToken,
             _gasRelayer
         );
+    }
+
+    /**
+     * @notice get network identification where this contract is running
+     */
+    function _getChainID() internal pure returns (uint256) {
+        uint256 id;
+        assembly {
+            id := chainid()
+        }
+        return id;
     }
 
 }

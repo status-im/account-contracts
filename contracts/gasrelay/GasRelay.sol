@@ -1,20 +1,20 @@
 pragma solidity >=0.5.0 <0.6.0;
 import "../cryptography/ECDSA.sol";
 /**
- * @title GasRelay
+ * @title GasRelay as EIP-1077
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  * @notice gas abstraction interface
  */
 contract GasRelay {
 
     bytes4 internal constant MSG_EXECUTE_GASRELAY_PREFIX = bytes4(
-        keccak256("executeGasRelay(bytes,uint256,uint256,address,address)")
+        keccak256("executeGasRelay(uint256,bytes,uint256,uint256,address,address)")
     );
 
     constructor() internal {}
 
     /**
-     * @notice execute something for this account and get paid the proportional gas in specified token.
+     * @notice executes `_execData` with current `nonce()` and pays `msg.sender` the gas used in specified `_gasToken`.
      * @param _execData execution data (anything)
      * @param _gasPrice price in `_gasToken` paid back to `msg.sender` per gas unit used
      * @param _gasLimit maximum gas of this transacton
@@ -90,8 +90,8 @@ contract GasRelay {
         returns (bytes memory)
     {
         return abi.encodePacked(
-            _nonce,
             MSG_EXECUTE_GASRELAY_PREFIX,
+            _nonce,
             _execData,
             _gasPrice,
             _gasLimit,

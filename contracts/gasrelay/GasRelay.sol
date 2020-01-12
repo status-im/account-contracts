@@ -1,5 +1,5 @@
 pragma solidity >=0.5.0 <0.7.0;
-import "../cryptography/ECDSA.sol";
+
 /**
  * @title GasRelay as EIP-1077
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
@@ -55,7 +55,7 @@ contract GasRelay {
         returns (bytes memory)
     {
         return abi.encodePacked(
-            ECDSA.toERC191SignedMessage(
+            toERC191SignedMessage(
                 address(this),
                 executeGasRelayMsg(
                     _nonce,
@@ -107,11 +107,23 @@ contract GasRelay {
      * @notice get network identification where this contract is running
      */
     function _getChainID() internal pure returns (uint256) {
-        uint256 id;
+        uint256 id = 1;
         assembly {
             id := chainid()
         }
         return id;
+    }
+
+    /**
+     * @dev Returns an ERC191 Signed Message, created from a `hash`. This
+     * replicates the behavior of the
+     * https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign[`eth_signTypedData`]
+     * JSON-RPC method.
+     *
+     * See {recover}.
+     */
+    function toERC191SignedMessage(address _validator, bytes memory data) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(byte(0x19), byte(0x0), _validator, data));
     }
 
 }

@@ -63,7 +63,7 @@ contract AccountGasAbstract is Account, GasRelay {
             _execData,
             _gasPrice,
             _gasLimit,
-            _gasToken,             
+            _gasToken,
             msg.sender,
             _signature
         )

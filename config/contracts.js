@@ -12,7 +12,10 @@ module.exports = {
     ],
     gas: "auto",
     strategy: "explicit",
-    contracts: {          
+    contracts: { 
+      UserAccountFactory: {
+        deploy: true
+      },
       MiniMeTokenFactory: {
         deploy: true
       },

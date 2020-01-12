@@ -233,7 +233,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         if(isContract(owner)){
             return Signer(owner).isValidSignature(_data, _signature);
         } else {
-            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(_data), _signature) ? MAGICVALUE : bytes4(0xffffffff);
+            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(address(this), _data), _signature) ? MAGICVALUE : bytes4(0xffffffff);
         }
     }
 }

@@ -174,7 +174,6 @@ contract MultisigRecovery {
     {
         bytes32 publicHash = active[_calldest].publicHash;
         require(publicHash != bytes32(0), "Recovery not set");
-        
         bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
         require(publicHash == keccak256(abi.encodePacked(peerHash, _merkleRoot)), "merkleRoot or executeHash is not valid");
         bytes32 approveHash = keccak256(

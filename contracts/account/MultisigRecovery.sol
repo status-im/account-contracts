@@ -1,10 +1,7 @@
 pragma solidity >=0.5.0 <0.7.0;
 
-import "../cryptography/MerkleProof.sol";
+import "../cryptography/MerkleMultiProof.sol";
 import "../cryptography/ECDSA.sol";
-import "../token/ERC20Token.sol";
-import "../common/TokenClaimer.sol";
-import "../common/Controlled.sol";
 import "../account/Signer.sol";
 import "../ens/ENS.sol";
 import "../ens/ResolverInterface.sol";
@@ -12,8 +9,9 @@ import "../ens/ResolverInterface.sol";
 /**
  * @notice Select privately other accounts that will allow the execution of actions (ERC-2429 compilant)
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
+ *         Vitalik Buterin (Ethereum Foundation)
  */
-contract MultisigRecovery is Controlled, TokenClaimer {
+contract MultisigRecovery {
     //Needed for EIP-1271 check
     bytes4 constant internal EIP1271_MAGICVALUE = 0x20c13b0b;
     //threshold constant
@@ -21,238 +19,215 @@ contract MultisigRecovery is Controlled, TokenClaimer {
     //Needed for ENS leafs
     ENS public ens;
     //flag for used recoveries (user need to define a different publicHash every execute)
-    mapping(bytes32 => bool) public revealed;
-    //flag to prevent leafs form resigning
-    mapping(bytes32 => mapping(bytes32 => bool)) public signed;
-    //counts approvals
-    mapping(bytes32 => uint256) public approved;
+    mapping(bytes32 => bool) public used;
+    //just used offchain
+    mapping(address => uint256) public nonce;
+    //flag approvals
+    mapping(bytes32 => Approval) public approved;
     //storage for pending setup
-    RecoverySet public pending;
+    mapping(address => RecoverySet) public pending;
     //storage for active recovery
-    RecoverySet public active;
+    mapping(address => RecoverySet) public active;
 
     struct RecoverySet {
         bytes32 publicHash;
-        bytes32 addressListMerkleRoot;
         uint256 setupDelay;
         uint256 timestamp;
     }
 
-    event SetupRequested(uint256 activation);
-    event Activated();
-    event Approved(bytes32 indexed secretHash, address approver, uint256 weight);
-    event Execution(bool success);
-
-    modifier notRevealed(bytes32 secretHash) {
-        require(!revealed[secretHash], "Already revealed");
-        _;
+    struct Approval {
+        bytes32 approveHash;
+        uint weight;
     }
 
+    event SetupRequested(address indexed who, uint256 activation);
+    event Activated(address indexed who);
+    event Approved(bytes32 indexed approveHash, address approver, uint256 weight);
+    event Execution(address indexed who, bool success);
+
     /**
-     * @notice Contructor of FriendsRecovery
-     * @param _controller Controller of this contract
      * @param _ens Address of ENS Registry
-     * @param _publicHash Double hash of User Secret
-     * @param _secretThresholdHash Secret Amount of approvals required
-     * @param _addressListMerkleRoot Merkle root of new secret friends list
-     * @param _setupDelay Delay for changes being active
      **/
     constructor(
-        address payable _controller,
-        ENS _ens,
-        bytes32 _publicHash,
-        bytes32 _addressListMerkleRoot,
-        uint256 _setupDelay
+        ENS _ens
     )
         public
     {
         ens = _ens;
-        controller = _controller;
-        active = RecoverySet(_publicHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
     }
-
-    /**
-     * @notice This method can be used to extract mistakenly
-     *  sent tokens to this contract.
-     * @param _token The address of the token contract that you want to recover
-     *  set to 0 in case you want to extract ether.
-     */
-    function claimTokens(address _token)
-        external
-        onlyController
-    {
-        withdrawBalance(_token, controller);
-    }
-
     /**
      * @notice Cancels a pending setup to change the recovery parameters
      */
     function cancelSetup()
         external
-        onlyController
     {
-        delete pending;
-        emit SetupRequested(0);
+        delete pending[msg.sender];
+        emit SetupRequested(msg.sender, 0);
     }
 
     /**
-     * @notice Configure recovery parameters `emits Activated()` if there was no previous setup, or `emits SetupRequested(now()+setupDelay)` when reconfiguring.
+     * @notice Configure recovery parameters of `msg.sender`. `emit Activated(msg.sender)` if there was no previous setup, or `emit SetupRequested(msg.sender, now()+setupDelay)` when reconfiguring.
      * @param _publicHash Double hash of executeHash
      * @param _setupDelay Delay for changes being active
-     * @param _secretThresholdHash Secret Amount of approvals required
-     * @param _addressListMerkleRoot Merkle root of secret address list
      */
     function setup(
         bytes32 _publicHash,
-        uint256 _setupDelay,
-        bytes32 _addressListMerkleRoot
+        uint256 _setupDelay
     )
         external
-        onlyController
-        notRevealed(_publicHash)
     {
-        RecoverySet memory newSet = RecoverySet(_publicHash, _addressListMerkleRoot, _setupDelay, block.timestamp);
-        if(active.publicHash == bytes32(0)){
-            active = newSet;
-            emit Activated();
+        require(!used[_publicHash], "_publicHash already used");
+        used[_publicHash] = true;
+        address who = msg.sender;
+        RecoverySet memory newSet = RecoverySet(_publicHash, _setupDelay, block.timestamp);
+        if(active[who].publicHash == bytes32(0)){
+            active[who] = newSet;
+            emit Activated(who);
         } else {
-            pending = newSet;
-            emit SetupRequested(block.timestamp + active.setupDelay);
+            pending[who] = newSet;
+            emit SetupRequested(who, block.timestamp + active[who].setupDelay);
         }
 
     }
 
     /**
      * @notice Activate a pending setup of recovery parameters
+     * @param _who address whih ready setupDelay.
      */
-    function activate()
+    function activate(address _who)
         external
     {
-        require(pending.timestamp > 0, "No pending setup");
-        require(pending.timestamp + active.setupDelay <= block.timestamp, "Waiting delay");
-        active = pending;
-        delete pending;
-        emit Activated();
+        RecoverySet storage pendingUser = pending[_who];
+        require(pendingUser.timestamp > 0, "No pending setup");
+        require(pendingUser.timestamp + active[_who].setupDelay <= block.timestamp, "Waiting delay");
+        active[_who] = pendingUser;
+        delete pending[_who];
+        emit Activated(_who);
     }
 
     /**
-     * @notice Approves a recovery.
-     * This method is important for when the address is an contract and dont implements EIP1271.
+     * @notice Approves a recovery. This method is important for when the address is an contract and dont implements EIP1271.
+     * @param _approveHash Hash of the recovery call
      * @param _peerHash seed of `publicHash`
      * @param _weight Amount of weight from the signature
-     * @param _secretCall Hash of the recovery call
-     * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
      * @param _ensNode if present, the _proof is checked against _ensNode.
      */
     function approve(
+        bytes32 _approveHash,
         bytes32 _peerHash,
         uint256 _weight,
-        bytes32 _secretCall,
-        bytes32[] calldata _proof,
         bytes32 _ensNode
     )
         external
     {
-        approveExecution(_secretCall, msg.sender, _ensNode, _peerHash, _weight, _proof);
+        approveExecution(msg.sender, _approveHash, _peerHash, _weight, _ensNode);
     }
 
     /**
      * @notice Approve a recovery using an ethereum signed message
      * @param _signer address of _signature processor. if _signer is a contract, must be ERC1271.
+     * @param _approveHash Hash of the recovery call
      * @param _peerHash seed of `publicHash`
      * @param _weight Amount of weight from the signature
-     * @param _secretCall Hash of the recovery call
-     * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
-     * @param _signature ERC191 signature
      * @param _ensNode if present, the _proof is checked against _ensName.
+     * @param _signature ERC191 signature
      */
     function approvePreSigned(
         address _signer,
+        bytes32 _approveHash,
         bytes32 _peerHash,
         uint256 _weight,
-        bytes32 _secretCall,
-        bytes32[] calldata _proof,
-        bytes calldata _signature,
-        bytes32 _ensNode
+        bytes32 _ensNode,
+        bytes calldata _signature
     )
         external
     {
-        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), active.publicHash, _secretCall));
+        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), _approveHash, _peerHash, _weight, _ensNode));
         require(_signer != address(0), "Invalid signer");
         require(
             (
                 isContract(_signer) && Signer(_signer).isValidSignature(abi.encodePacked(signingHash), _signature) == EIP1271_MAGICVALUE
             ) || ECDSA.recover(signingHash, _signature) == _signer,
             "Invalid signature");
-        approveExecution(_secretCall, _signer, _ensNode, _peerHash, _weight, _proof);
+        approveExecution(_signer,  _approveHash, _peerHash, _weight, _ensNode);
     }
 
     /**
      * @notice executes an approved transaction revaling publicHash hash, friends addresses and set new recovery parameters
      * @param _executeHash Seed of `peerHash`
-     * @param _dest Address will be called
-     * @param _data Data to be sent
+     * @param _merkleRoot Revealed merkle root
+     * @param _calldest Address will be called
+     * @param _calldata Data to be sent
+     * @param _leafHashes Pre approved leafhashes and it's siblings ordered by descending weight
+     * @param _proofs parents proofs
+     * @param _indexes indexes that select the hashing pairs from calldata `_leafHashes` and `_proofs` and from memory `hashes`
      */
     function execute(
         bytes32 _executeHash,
-        address _dest,
-        bytes calldata _data
+        bytes32 _merkleRoot,
+        address _calldest,
+        bytes calldata _calldata,
+        bytes32[] calldata _leafHashes,
+        bytes32[] calldata _proofs,
+        uint256[] calldata _indexes
     )
         external
     {
-        require(active.publicHash != bytes32(0), "Recovery not set");
-        bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
-        require(active.publicHash == keccak256(abi.encodePacked(peerHash)), "Invalid secret");
-        revealed[active.publicHash] = true;
-
-        bytes32 callHash = keccak256(
+        bytes32 publicHash = active[_calldest].publicHash;
+        require(publicHash != bytes32(0), "Recovery not set");
+        bytes32 peerHash = keccak256(abi.encodePacked(_merkleRoot, _executeHash));
+        require(publicHash == keccak256(abi.encodePacked(peerHash)), "merkleRoot or executeHash is not valid");
+        bytes32 approveHash = keccak256(
             abi.encodePacked(
-                _executeHash,
-                _dest,
-                _data
+                peerHash,
+                _calldest,
+                _calldata
             )
         );
-
-        require(approved[callHash] > THRESHOLD, "Invalid threshold");
-        delete approved[callHash];
-
-        delete active;
-        delete pending;
+        uint256 weight = 0;
+        uint256 i = 0;
+        while(weight < THRESHOLD){
+            bytes32 tempHash = _leafHashes[i];
+            require(approved[tempHash].approveHash == approveHash, "Hash not approved");
+            weight += approved[tempHash].weight;
+            delete approved[tempHash];
+            i++;
+        }
+        require(MerkleMultiProof.verifyMerkleMultiproof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");
+        nonce[_calldest]++;
+        delete active[_calldest];
+        delete pending[_calldest];
         bool success;
-        (success, ) = _dest.call(_data);
-        emit Execution(success);
+        (success, ) = _calldest.call(_calldata);
+        emit Execution(_calldest, success);
     }
 
     /**
-     * @param _signer address of _signature processor. if _signer is a contract, must be ERC1271.
+     * @param _signer address of approval signer
+     * @param _approveHash Hash of the recovery call
      * @param _peerHash seed of `publicHash`
-     * @param _secretCall Hash of the recovery call
-     * @param _proof Merkle proof of friendsMerkleRoot with msg.sender
      * @param _weight Amount of weight from the signature
-     * @param _ensNode if present, the _proof is checked against _ensName.
+     * @param _ensNode if present, the _proof is checked against _ensNode.
      */
     function approveExecution(
-        bytes32 _secretCall,
         address _signer,
-        bytes32 _ensNode,
+        bytes32 _approveHash,
         bytes32 _peerHash,
         uint256 _weight,
-        bytes32[] memory _proof
-    ) internal {
+        bytes32 _ensNode
+    )
+        internal
+    {
         bool isENS = _ensNode != bytes32(0);
         require(
             !isENS || (
-                _signer == ens.owner(_ensNode) ||
                 _signer == ResolverInterface(ens.resolver(_ensNode)).addr(_ensNode)
             ),
             "Invalid ENS entry"
         );
         bytes32 leaf = keccak256(abi.encodePacked(_peerHash, _weight, isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
-        require(MerkleProof.verify(_proof, active.addressListMerkleRoot, leaf), "Invalid proof");
-        require(!signed[_secretCall][leaf], "Already approved");
-        signed[_secretCall][leaf] = true;
-        approved[_secretCall] += _weight;
-        emit Approved(_secretCall, _signer, _weight);
+        approved[leaf] = Approval(_approveHash, _weight);
+        emit Approved(_approveHash, _signer, _weight);
     }
 
     /**

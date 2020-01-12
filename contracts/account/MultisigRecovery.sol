@@ -127,7 +127,6 @@ contract MultisigRecovery {
      * @notice Approve a recovery using an ethereum signed message
      * @param _signer address of _signature processor. if _signer is a contract, must be ERC1271.
      * @param _approveHash Hash of the recovery call
-     * @param _peerHash seed of `publicHash`
      * @param _weight Amount of weight from the signature
      * @param _ensNode if present, the _proof is checked against _ensName.
      * @param _signature ERC191 signature
@@ -175,8 +174,8 @@ contract MultisigRecovery {
     {
         bytes32 publicHash = active[_calldest].publicHash;
         require(publicHash != bytes32(0), "Recovery not set");
-        bytes32 peerHash = keccak256(abi.encodePacked(_merkleRoot, _executeHash));
-        require(publicHash == keccak256(abi.encodePacked(peerHash)), "merkleRoot or executeHash is not valid");
+        bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
+        require(publicHash == keccak256(abi.encodePacked(peerHash, _merkleRoot)), "merkleRoot or executeHash is not valid");
         bytes32 approveHash = keccak256(
             abi.encodePacked(
                 peerHash,

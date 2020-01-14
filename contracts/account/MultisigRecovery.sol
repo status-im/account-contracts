@@ -165,6 +165,7 @@ contract MultisigRecovery {
         bytes32 _executeHash,
         bytes32 _merkleRoot,
         address _calldest,
+        uint256 _weightMultipler,
         bytes calldata _calldata,
         bytes32[] calldata _leafHashes,
         bytes32[] calldata _proofs,
@@ -175,7 +176,11 @@ contract MultisigRecovery {
         bytes32 publicHash = active[_calldest].publicHash;
         require(publicHash != bytes32(0), "Recovery not set");
         bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
-        require(publicHash == keccak256(abi.encodePacked(peerHash, _merkleRoot)), "merkleRoot or executeHash is not valid");
+        require(
+            publicHash == keccak256(
+                abi.encodePacked(peerHash, _merkleRoot, _weightMultipler)
+            ), "merkleRoot, executeHash or weightMultipler is not valid"
+        );
         bytes32 approveHash = keccak256(
             abi.encodePacked(
                 peerHash,
@@ -188,7 +193,7 @@ contract MultisigRecovery {
         while(weight < THRESHOLD){
             bytes32 tempHash = _leafHashes[i];
             require(approved[tempHash].approveHash == approveHash, "Hash not approved");
-            weight += approved[tempHash].weight;
+            weight += approved[tempHash].weight*_weightMultipler;
             delete approved[tempHash];
             i++;
         }

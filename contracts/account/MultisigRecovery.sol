@@ -155,6 +155,7 @@ contract MultisigRecovery {
      * @notice executes an approved transaction revaling publicHash hash, friends addresses and set new recovery parameters
      * @param _executeHash Seed of `peerHash`
      * @param _merkleRoot Revealed merkle root
+     * @param _weightMultipler How much approval weights are multipled for.
      * @param _calldest Address will be called
      * @param _calldata Data to be sent
      * @param _leafHashes Pre approved leafhashes and it's siblings ordered by descending weight
@@ -164,8 +165,8 @@ contract MultisigRecovery {
     function execute(
         bytes32 _executeHash,
         bytes32 _merkleRoot,
-        address _calldest,
         uint256 _weightMultipler,
+        address _calldest,
         bytes calldata _calldata,
         bytes32[] calldata _leafHashes,
         bytes32[] calldata _proofs,

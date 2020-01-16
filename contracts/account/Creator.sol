@@ -56,7 +56,7 @@ contract Creator {
                 bytes1(0xff),
                 address(this),
                 _salt,
-                _code
+                keccak256(_code)
             )
         );
 

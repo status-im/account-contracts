@@ -23,7 +23,7 @@ contract MultisigRecovery {
     //just used offchain
     mapping(address => uint256) public nonce;
     //flag approvals
-    mapping(bytes32 => bytes32) public approved;
+    mapping(bytes32 => mapping(bytes32=>bool)) public approved;
     //storage for pending setup
     mapping(address => RecoverySet) public pending;
     //storage for active recovery
@@ -103,17 +103,15 @@ contract MultisigRecovery {
     /**
      * @notice Approves a recovery. This method is important for when the address is an contract and dont implements EIP1271.
      * @param _approveHash Hash of the recovery call
-     * @param _peerHash seed of `publicHash`
      * @param _ensNode if present, the _proof is checked against _ensNode.
      */
     function approve(
         bytes32 _approveHash,
-        bytes32 _peerHash,
         bytes32 _ensNode
     )
         external
     {
-        approveExecution(msg.sender, _approveHash, _peerHash, _ensNode);
+        approveExecution(msg.sender, _approveHash, _ensNode);
     }
 
     /**
@@ -126,20 +124,19 @@ contract MultisigRecovery {
     function approvePreSigned(
         address _signer,
         bytes32 _approveHash,
-        bytes32 _peerHash,
         bytes32 _ensNode,
         bytes calldata _signature
     )
         external
     {
-        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), _approveHash, _peerHash, _ensNode));
+        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), _approveHash, _ensNode));
         require(_signer != address(0), "Invalid signer");
         require(
             (
                 isContract(_signer) && Signer(_signer).isValidSignature(abi.encodePacked(signingHash), _signature) == EIP1271_MAGICVALUE
             ) || ECDSA.recover(signingHash, _signature) == _signer,
             "Invalid signature");
-        approveExecution(_signer,  _approveHash, _peerHash, _ensNode);
+        approveExecution(_signer,  _approveHash, _ensNode);
     }
 
     /**
@@ -165,10 +162,9 @@ contract MultisigRecovery {
     {
         bytes32 publicHash = active[_calldest].publicHash;
         require(publicHash != bytes32(0), "Recovery not set");
-        bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
         require(
             publicHash == keccak256(
-                abi.encodePacked(peerHash, _merkleRoot)
+                abi.encodePacked(_executeHash, _merkleRoot)
             ), "merkleRoot or executeHash is not valid"
         );
         uint256 th = THRESHOLD;
@@ -177,16 +173,15 @@ contract MultisigRecovery {
         while(weight < th){
             bytes32 leafHash = _leafHashes[i];
             uint256 leafWeight = uint256(_leafHashes[i+1]);
-            require(
-                approved[leafHash] == keccak256(
-                    abi.encodePacked(
-                        leafHash,
-                        _calldest,
-                        _calldata
-                    )
-                ), "Hash not approved");
+            bytes32 approveHash = keccak256(
+                abi.encodePacked(
+                    leafHash,
+                    _calldest,
+                    _calldata
+            ));
+            require(approved[leafHash][approveHash], "Hash not approved");
             weight += leafWeight;
-            delete approved[leafHash];
+            delete approved[leafHash][approveHash];
             i += 2;
         }
         require(MerkleMultiProof.verifyMerkleMultiproof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");
@@ -201,13 +196,11 @@ contract MultisigRecovery {
     /**
      * @param _signer address of approval signer
      * @param _approveHash Hash of the recovery call
-     * @param _peerHash seed of `publicHash`
      * @param _ensNode if present, the _proof is checked against _ensNode.
      */
     function approveExecution(
         address _signer,
         bytes32 _approveHash,
-        bytes32 _peerHash,
         bytes32 _ensNode
     )
         internal
@@ -219,8 +212,8 @@ contract MultisigRecovery {
             ),
             "Invalid ENS entry"
         );
-        bytes32 leaf = keccak256(abi.encodePacked(_peerHash, isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
-        approved[leaf] = _approveHash;
+        bytes32 leaf = keccak256(abi.encodePacked(isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
+        approved[leaf][_approveHash] = true;
         emit Approved(_approveHash, leaf);
     }
 

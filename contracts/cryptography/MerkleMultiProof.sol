@@ -31,7 +31,7 @@ library MerkleMultiProof {
         uint256 pos = 0;
 
         for(uint256 i = 0; i < indexesLen; i += 2){
-            hashes[hashesOffset+pos] = keccak256(
+            hashes[pos] = keccak256(
                 abi.encodePacked(
                     getElementFromIndex(leaves, proofs, hashes, indexes[i], proofOffset, hashesOffset),
                     getElementFromIndex(leaves, proofs, hashes, indexes[i+1], proofOffset, hashesOffset)
@@ -39,7 +39,7 @@ library MerkleMultiProof {
             );
             pos++;
         }
-        return hashes[indexesLen-1];
+        return hashes[hashes.length-1];
     }
 
     /**

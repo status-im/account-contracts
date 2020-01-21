@@ -155,7 +155,7 @@ contract MultisigRecovery {
      * @notice executes an approved transaction revaling publicHash hash, friends addresses and set new recovery parameters
      * @param _executeHash Seed of `peerHash`
      * @param _merkleRoot Revealed merkle root
-     * @param _weightMultipler How much approval weights are multipled for.
+     * @param _thresholdDivisor Reduces the total weight needed to execute
      * @param _calldest Address will be called
      * @param _calldata Data to be sent
      * @param _leafHashes Pre approved leafhashes and it's siblings ordered by descending weight
@@ -165,7 +165,7 @@ contract MultisigRecovery {
     function execute(
         bytes32 _executeHash,
         bytes32 _merkleRoot,
-        uint256 _weightMultipler,
+        uint256 _thresholdDivisor,
         address _calldest,
         bytes calldata _calldata,
         bytes32[] calldata _leafHashes,
@@ -179,23 +179,24 @@ contract MultisigRecovery {
         bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
         require(
             publicHash == keccak256(
-                abi.encodePacked(peerHash, _merkleRoot, _weightMultipler)
+                abi.encodePacked(peerHash, _merkleRoot, _thresholdDivisor)
             ), "merkleRoot, executeHash or weightMultipler is not valid"
         );
-        bytes32 approveHash = keccak256(
-            abi.encodePacked(
-                peerHash,
-                _calldest,
-                _calldata
-            )
-        );
+        uint256 th = THRESHOLD/_thresholdDivisor;
         uint256 weight = 0;
         uint256 i = 0;
-        while(weight < THRESHOLD){
-            bytes32 tempHash = _leafHashes[i];
-            require(approved[tempHash].approveHash == approveHash, "Hash not approved");
-            weight += approved[tempHash].weight*_weightMultipler;
-            delete approved[tempHash];
+        while(weight < th){
+            bytes32 leafHash = _leafHashes[i];
+            require(
+                approved[leafHash].approveHash == keccak256(
+                    abi.encodePacked(
+                        leafHash,
+                        _calldest,
+                        _calldata
+                    )
+                ), "Hash not approved");
+            weight += approved[leafHash].weight;
+            delete approved[leafHash];
             i++;
         }
         require(MerkleMultiProof.verifyMerkleMultiproof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");

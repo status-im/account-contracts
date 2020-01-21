@@ -23,7 +23,7 @@ contract MultisigRecovery {
     //just used offchain
     mapping(address => uint256) public nonce;
     //flag approvals
-    mapping(bytes32 => Approval) public approved;
+    mapping(bytes32 => bytes32) public approved;
     //storage for pending setup
     mapping(address => RecoverySet) public pending;
     //storage for active recovery
@@ -35,14 +35,9 @@ contract MultisigRecovery {
         uint256 timestamp;
     }
 
-    struct Approval {
-        bytes32 approveHash;
-        uint weight;
-    }
-
     event SetupRequested(address indexed who, uint256 activation);
     event Activated(address indexed who);
-    event Approved(bytes32 indexed approveHash, address approver, uint256 weight);
+    event Approved(bytes32 indexed approveHash, bytes32 leaf);
     event Execution(address indexed who, bool success);
 
     /**
@@ -109,25 +104,22 @@ contract MultisigRecovery {
      * @notice Approves a recovery. This method is important for when the address is an contract and dont implements EIP1271.
      * @param _approveHash Hash of the recovery call
      * @param _peerHash seed of `publicHash`
-     * @param _weight Amount of weight from the signature
      * @param _ensNode if present, the _proof is checked against _ensNode.
      */
     function approve(
         bytes32 _approveHash,
         bytes32 _peerHash,
-        uint256 _weight,
         bytes32 _ensNode
     )
         external
     {
-        approveExecution(msg.sender, _approveHash, _peerHash, _weight, _ensNode);
+        approveExecution(msg.sender, _approveHash, _peerHash, _ensNode);
     }
 
     /**
      * @notice Approve a recovery using an ethereum signed message
      * @param _signer address of _signature processor. if _signer is a contract, must be ERC1271.
      * @param _approveHash Hash of the recovery call
-     * @param _weight Amount of weight from the signature
      * @param _ensNode if present, the _proof is checked against _ensName.
      * @param _signature ERC191 signature
      */
@@ -135,37 +127,34 @@ contract MultisigRecovery {
         address _signer,
         bytes32 _approveHash,
         bytes32 _peerHash,
-        uint256 _weight,
         bytes32 _ensNode,
         bytes calldata _signature
     )
         external
     {
-        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), _approveHash, _peerHash, _weight, _ensNode));
+        bytes32 signingHash = ECDSA.toERC191SignedMessage(address(this), abi.encodePacked(_getChainID(), _approveHash, _peerHash, _ensNode));
         require(_signer != address(0), "Invalid signer");
         require(
             (
                 isContract(_signer) && Signer(_signer).isValidSignature(abi.encodePacked(signingHash), _signature) == EIP1271_MAGICVALUE
             ) || ECDSA.recover(signingHash, _signature) == _signer,
             "Invalid signature");
-        approveExecution(_signer,  _approveHash, _peerHash, _weight, _ensNode);
+        approveExecution(_signer,  _approveHash, _peerHash, _ensNode);
     }
 
     /**
      * @notice executes an approved transaction revaling publicHash hash, friends addresses and set new recovery parameters
      * @param _executeHash Seed of `peerHash`
      * @param _merkleRoot Revealed merkle root
-     * @param _thresholdDivisor Reduces the total weight needed to execute
      * @param _calldest Address will be called
      * @param _calldata Data to be sent
-     * @param _leafHashes Pre approved leafhashes and it's siblings ordered by descending weight
+     * @param _leafHashes Pre approved leafhashes and it's weights as siblings ordered by descending weight
      * @param _proofs parents proofs
      * @param _indexes indexes that select the hashing pairs from calldata `_leafHashes` and `_proofs` and from memory `hashes`
      */
     function execute(
         bytes32 _executeHash,
         bytes32 _merkleRoot,
-        uint256 _thresholdDivisor,
         address _calldest,
         bytes calldata _calldata,
         bytes32[] calldata _leafHashes,
@@ -179,25 +168,26 @@ contract MultisigRecovery {
         bytes32 peerHash = keccak256(abi.encodePacked(_executeHash));
         require(
             publicHash == keccak256(
-                abi.encodePacked(peerHash, _merkleRoot, _thresholdDivisor)
-            ), "merkleRoot, executeHash or weightMultipler is not valid"
+                abi.encodePacked(peerHash, _merkleRoot)
+            ), "merkleRoot or executeHash is not valid"
         );
-        uint256 th = THRESHOLD/_thresholdDivisor;
+        uint256 th = THRESHOLD;
         uint256 weight = 0;
         uint256 i = 0;
         while(weight < th){
             bytes32 leafHash = _leafHashes[i];
+            uint256 leafWeight = uint256(_leafHashes[i+1]);
             require(
-                approved[leafHash].approveHash == keccak256(
+                approved[leafHash] == keccak256(
                     abi.encodePacked(
                         leafHash,
                         _calldest,
                         _calldata
                     )
                 ), "Hash not approved");
-            weight += approved[leafHash].weight;
+            weight += leafWeight;
             delete approved[leafHash];
-            i++;
+            i += 2;
         }
         require(MerkleMultiProof.verifyMerkleMultiproof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");
         nonce[_calldest]++;
@@ -212,14 +202,12 @@ contract MultisigRecovery {
      * @param _signer address of approval signer
      * @param _approveHash Hash of the recovery call
      * @param _peerHash seed of `publicHash`
-     * @param _weight Amount of weight from the signature
      * @param _ensNode if present, the _proof is checked against _ensNode.
      */
     function approveExecution(
         address _signer,
         bytes32 _approveHash,
         bytes32 _peerHash,
-        uint256 _weight,
         bytes32 _ensNode
     )
         internal
@@ -231,9 +219,9 @@ contract MultisigRecovery {
             ),
             "Invalid ENS entry"
         );
-        bytes32 leaf = keccak256(abi.encodePacked(_peerHash, _weight, isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
-        approved[leaf] = Approval(_approveHash, _weight);
-        emit Approved(_approveHash, _signer, _weight);
+        bytes32 leaf = keccak256(abi.encodePacked(_peerHash, isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
+        approved[leaf] = _approveHash;
+        emit Approved(_approveHash, leaf);
     }
 
     /**

@@ -136,7 +136,7 @@ contract MultisigRecovery {
                 isContract(_signer) && Signer(_signer).isValidSignature(abi.encodePacked(signingHash), _signature) == EIP1271_MAGICVALUE
             ) || ECDSA.recover(signingHash, _signature) == _signer,
             "Invalid signature");
-        approveExecution(_signer,  _approveHash, _ensNode);
+        approveExecution(_signer, _approveHash, _ensNode);
     }
 
     /**
@@ -162,9 +162,10 @@ contract MultisigRecovery {
     {
         bytes32 publicHash = active[_calldest].publicHash;
         require(publicHash != bytes32(0), "Recovery not set");
+        bytes32 partialReveal = keccak256(abi.encodePacked(_executeHash));
         require(
             publicHash == keccak256(
-                abi.encodePacked(_executeHash, _merkleRoot)
+                abi.encodePacked(partialReveal, keccak256(abi.encodePacked(_merkleRoot)))
             ), "merkleRoot or executeHash is not valid"
         );
         uint256 th = THRESHOLD;
@@ -176,6 +177,7 @@ contract MultisigRecovery {
             bytes32 approveHash = keccak256(
                 abi.encodePacked(
                     leafHash,
+                    partialReveal,
                     _calldest,
                     _calldata
             ));

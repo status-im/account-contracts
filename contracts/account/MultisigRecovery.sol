@@ -168,23 +168,21 @@ contract MultisigRecovery {
                 abi.encodePacked(partialReveal, keccak256(abi.encodePacked(_merkleRoot)))
             ), "merkleRoot or executeHash is not valid"
         );
-        uint256 th = THRESHOLD;
+        bytes32 callHash = keccak256(
+            abi.encodePacked(partialReveal, _calldest, _calldata)
+        );
         uint256 weight = 0;
-        uint256 i = 0;
-        while(weight < th){
+        for(uint256 i = 0; weight < THRESHOLD; i += 2){
             bytes32 leafHash = _leafHashes[i];
             uint256 leafWeight = uint256(_leafHashes[i+1]);
             bytes32 approveHash = keccak256(
                 abi.encodePacked(
                     leafHash,
-                    partialReveal,
-                    _calldest,
-                    _calldata
+                    callHash
             ));
             require(approved[leafHash][approveHash], "Hash not approved");
             weight += leafWeight;
             delete approved[leafHash][approveHash];
-            i += 2;
         }
         require(MerkleMultiProof.verifyMerkleMultiproof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");
         nonce[_calldest]++;

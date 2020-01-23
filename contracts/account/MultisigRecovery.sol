@@ -184,7 +184,7 @@ contract MultisigRecovery {
             weight += leafWeight;
             delete approved[leafHash][approveHash];
         }
-        require(MerkleMultiProof.verifyMerkleMultiproof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");
+        require(MerkleMultiProof.verifyMultiProof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");
         nonce[_calldest]++;
         delete active[_calldest];
         delete pending[_calldest];

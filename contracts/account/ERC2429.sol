@@ -80,4 +80,5 @@ interface ERC2429 {
         bytes32[] calldata _proofs,
         bool[] calldata _proofFlags
     )
+        external;
 }

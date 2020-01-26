@@ -3,6 +3,9 @@ import "../cryptography/MerkleMultiProof.sol";
 
 contract MerkleMultiProofWrapper {
 
+    function foo() external {
+        
+    }
 
     function calculateMultiMerkleRoot(
         bytes32[] memory leafs,
@@ -39,5 +42,26 @@ contract MerkleMultiProofWrapper {
         pure
     {
         assert(MerkleMultiProof.verifyMultiProof(root, leafs, proofs, useProof));
+    }
+
+    function assertMultiProofCost(
+        bool[] memory useProof
+    )
+        public
+        pure
+    {
+
+    }
+
+    function assertMultiProofCost(
+        bytes32 root,
+        bytes32[] memory leafs,
+        bytes32[] memory proofs
+
+    )
+        public
+        pure
+    {
+
     }
 }

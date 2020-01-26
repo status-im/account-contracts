@@ -23,9 +23,34 @@ contract('MultiMerkleProof', function () {
   const leafs = merkleTree.getElements(Array.from({length: leafsSize}, (v,k) => ""+k));
 
   describe('verifyMultiProof', function () {
+  
+    it('deploy cost', async function () {
+      await MerkleMultiProofWrapper.methods.foo().send()
+    });
+
+    it('cost to send proofs + leafs', async function () {
+      const proof = merkleTree.getMultiProof(leafs);
+      console.log("leafs length:", leafs.length)
+      console.log("proofs length:", proof.length)
+      await MerkleMultiProofWrapper.methods.assertMultiProofCost(
+        merkleTree.getHexRoot(),
+        leafs, 
+        proof
+      ).send()
+    });
+
+    it('cost to send flags', async function () {
+      const proof = merkleTree.getMultiProof(leafs);
+      const flags = merkleTree.getProofFlags(leafs, proof);
+      await MerkleMultiProofWrapper.methods.assertMultiProofCost(
+        flags
+      ).send()
+    });
+
     it('should return true for a valid Merkle proof', async function () {
       const proof = merkleTree.getMultiProof(leafs);
       const flags = merkleTree.getProofFlags(leafs, proof);
+      console.log("flags:", flags.reduce((ret,v)=> ret+(v ? "1":"0"),""));
       await MerkleMultiProofWrapper.methods.assertMultiProof(
         merkleTree.getHexRoot(),
         leafs, 
@@ -52,11 +77,13 @@ contract('MultiMerkleProof', function () {
       for(let j = 0; j < fuzzyProofChecks; j++){
         const leafsFuzzy = merkleTree.getElements(Array.from({length: leafsSize}, () => elements[Math.floor(Math.random()*elements.length)] ).filter((value, index, self) => self.indexOf(value) === index));
         const proof = merkleTree.getMultiProof(leafsFuzzy);
+        const flags = merkleTree.getProofFlags(leafsFuzzy, proof);
+
         const result = await MerkleMultiProofWrapper.methods.verifyMultiProof(
           merkleTree.getHexRoot(),
           leafsFuzzy, 
           proof, 
-          merkleTree.getProofFlags(leafsFuzzy, proof)
+          flags
         ).call();
         assert(result);
       }

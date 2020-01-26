@@ -28,7 +28,7 @@ class MerkleTree {
         if(!skipped) {
           const pairElement = this.getPairElement(idx, layer);
           const proofUsed = proofs.includes(layer[idx]) || proofs.includes(pairElement);
-          flags.push(proofUsed);
+          flags.push(!proofUsed);
           tested.push(layer[idx]);
           tested.push(pairElement);
         } 

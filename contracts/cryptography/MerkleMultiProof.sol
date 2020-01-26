@@ -32,7 +32,7 @@ library MerkleMultiProof {
         uint proofPos = 0;
         for(uint256 i = 0; i < totalHashes; i++){
             hashes[i] = hashPair(
-                proofPos < proofsLen && proofFlag[i] ? proofs[proofPos++] : leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++],
+                proofPos < proofsLen && !proofFlag[i] ? proofs[proofPos++] : leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++],
                 leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++]
             );
         }

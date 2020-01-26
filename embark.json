@@ -9,16 +9,13 @@
   "buildDir": "dist/",
   "config": "config/",
   "versions": {
-    "web3": "1.0.0-beta",
-    "solc": "0.5.4",
-    "ipfs-api": "17.2.4"
+    "solc": "0.5.8"
   },
   "plugins": {
-    "embarkjs-connector-web3": {}
   },
   "options": {
     "solc": {
-      "optimize": true,
+      "optimize": false,
       "optimize-runs": 200
     }
   },

@@ -23,34 +23,36 @@ contract('MultiMerkleProof', function () {
   const leafs = merkleTree.getElements(Array.from({length: leafsSize}, (v,k) => ""+k));
 
   describe('verifyMultiProof', function () {
-  
+    const proof = merkleTree.getMultiProof(leafs);
+    var flags = merkleTree.getProofFlags(leafs, proof);
     it('deploy cost', async function () {
       await MerkleMultiProofWrapper.methods.foo().send()
     });
 
-    it('cost to send proofs + leafs', async function () {
-      const proof = merkleTree.getMultiProof(leafs);
+    it('cost of calldata (proofs + leafs + flags)', async function () {
+
       console.log("leafs length:", leafs.length)
       console.log("proofs length:", proof.length)
+      console.log("flags length:", flags.length)
+      console.log("flags:", flags.reduce((ret,v)=> ret+(v ? "1":"0"),""));
       await MerkleMultiProofWrapper.methods.assertMultiProofCost(
         merkleTree.getHexRoot(),
         leafs, 
-        proof
+        proof,
+        flags
       ).send()
     });
 
-    it('cost to send flags', async function () {
-      const proof = merkleTree.getMultiProof(leafs);
-      const flags = merkleTree.getProofFlags(leafs, proof);
+    it('cost of calldata (flags)', async function () {
       await MerkleMultiProofWrapper.methods.assertMultiProofCost(
         flags
       ).send()
     });
 
-    it('should return true for a valid Merkle proof', async function () {
+
+    it('cost of verify', async function () {
       const proof = merkleTree.getMultiProof(leafs);
-      const flags = merkleTree.getProofFlags(leafs, proof);
-      console.log("flags:", flags.reduce((ret,v)=> ret+(v ? "1":"0"),""));
+
       await MerkleMultiProofWrapper.methods.assertMultiProof(
         merkleTree.getHexRoot(),
         leafs, 
@@ -58,7 +60,6 @@ contract('MultiMerkleProof', function () {
         flags,
       ).send()
     });
-
 
     it('should return false for an invalid Merkle proof', async function () {
       const leafs2 = merkleTree.getElements(Array.from({length: leafsSize}, (v,k) => ""+k*2));;
@@ -71,7 +72,6 @@ contract('MultiMerkleProof', function () {
       ).call()
       assert(!result);
     });
-
     
     it('should return true for a valid Merkle proof (fuzzy)', async function () {
       for(let j = 0; j < fuzzyProofChecks; j++){

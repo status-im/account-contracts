@@ -23,16 +23,14 @@ library MerkleMultiProof {
         returns (bytes32 merkleRoot)
     {
         uint256 leafsLen = leafs.length;
-        uint256 proofsLen = proofs.length;
-
-        uint256 totalHashes = proofsLen + leafsLen - 1;
+        uint256 totalHashes = proofFlag.length;
         bytes32[] memory hashes = new bytes32[](totalHashes);
         uint leafPos = 0;
         uint hashPos = 0;
         uint proofPos = 0;
         for(uint256 i = 0; i < totalHashes; i++){
             hashes[i] = hashPair(
-                proofPos < proofsLen && !proofFlag[i] ? proofs[proofPos++] : leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++],
+                proofFlag[i] ? (leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++]) : proofs[proofPos++],
                 leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++]
             );
         }

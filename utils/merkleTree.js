@@ -20,7 +20,7 @@ class MerkleTree {
     }
 
     const tested = [];
-    const flags = []
+    const flags = [];
     for (let index = 0; index < this.layers.length; index++) {
       const layer = this.layers[index];
       ids = ids.reduce((ids, idx) => {
@@ -28,7 +28,7 @@ class MerkleTree {
         if(!skipped) {
           const pairElement = this.getPairElement(idx, layer);
           const proofUsed = proofs.includes(layer[idx]) || proofs.includes(pairElement);
-          flags.push(!proofUsed);
+          pairElement && flags.push(!proofUsed);
           tested.push(layer[idx]);
           tested.push(pairElement);
         } 

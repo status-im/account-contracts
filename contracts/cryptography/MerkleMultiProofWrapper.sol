@@ -3,19 +3,8 @@ import "../cryptography/MerkleMultiProof.sol";
 
 contract MerkleMultiProofWrapper {
 
-    function calculateMultiMerkleRootIds(
-        bytes32[] memory leafs,
-        bytes32[] memory proofs,
-        uint256[] memory indexes
-    )
-        public
-        pure
-        returns (bytes32)
-    {
-        return MerkleMultiProof.calculateMultiMerkleRoot(leafs, proofs, indexes);
-    }
 
-    function calculateMultiMerkleRootFlags(
+    function calculateMultiMerkleRoot(
         bytes32[] memory leafs,
         bytes32[] memory proofs,
         bool[] memory useProof
@@ -27,20 +16,7 @@ contract MerkleMultiProofWrapper {
         return MerkleMultiProof.calculateMultiMerkleRoot(leafs, proofs, useProof);
     }
 
-    function verifyMultiProofIds(
-        bytes32 root,
-        bytes32[] memory leafs,
-        bytes32[] memory proofs,
-        uint256[] memory indexes
-    )
-        public
-        pure
-        returns (bool)
-    {
-        return MerkleMultiProof.verifyMultiProof(root, leafs, proofs, indexes);
-    }
-
-    function verifyMultiProofFlags(
+    function verifyMultiProof(
         bytes32 root,
         bytes32[] memory leafs,
         bytes32[] memory proofs,
@@ -53,20 +29,7 @@ contract MerkleMultiProofWrapper {
         return MerkleMultiProof.verifyMultiProof(root, leafs, proofs, useProof);
     }
 
-
-    function assertMultiProofIds(
-        bytes32 root,
-        bytes32[] memory leafs,
-        bytes32[] memory proofs,
-        uint256[] memory indexes
-    )
-        public
-        pure
-    {
-        assert(MerkleMultiProof.verifyMultiProof(root, leafs, proofs, indexes));
-    }
-
-    function assertMultiProofFlags(
+    function assertMultiProof(
         bytes32 root,
         bytes32[] memory leafs,
         bytes32[] memory proofs,

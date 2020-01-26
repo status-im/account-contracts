@@ -6,66 +6,17 @@ pragma solidity >=0.5.0 <0.7.0;
  */
 library MerkleMultiProof {
 
-    /**
-     * @notice Calculates a merkle root using multiple leafs at same time
-     * @param leafs out of order sequence of leafs and it's siblings
-     * @param proofs out of order sequence of parent proofs
-     * @param indexes indexes that select the hashing pairs from calldata `leafs` and `proofs` and from memory `hashes`
-     * @return merkle root of tree
-     */
-    function calculateMultiMerkleRoot(
-        bytes32[] memory leafs,
-        bytes32[] memory proofs,
-        uint256[] memory indexes
-    )
-        internal
-        pure
-        returns (bytes32 merkleRoot)
-    {
-        //`totalHashes == (totalIndexes/2) + (leafsLen/2) == leafsLen + proofsLen - 1`
-        uint256 leafsLen = leafs.length;
-        uint256 proofsLen = proofs.length;
-
-        uint256 totalHashes = proofsLen + leafsLen - 1;
-        uint256 totalIndexes = totalHashes + proofsLen - 1;
-
-
-        bytes32[] memory hashes = new bytes32[](totalHashes);
-        uint256 pos = 0;
-
-        //calculate fixed hashing pairs
-        for(uint256 i = 0; i < leafsLen; i += 2){
-            hashes[pos] = keccak256(abi.encodePacked(leafs[i],leafs[i+1]));
-            pos++;
-        }
-        uint256 indexesLen = indexes.length;
-        //calculate dynamic hashing pairs
-        for(uint256 i = 0; i < totalIndexes; i += 2){
-            uint256 index1 = i < indexesLen ? indexes[i] : i;
-            uint256 index2 = i+1 < indexesLen? indexes[i+1] : i+1;
-            hashes[pos] = keccak256(
-                abi.encodePacked(
-                    index1 < proofsLen ? proofs[index1] : hashes[index1-proofsLen],
-                    index2 < proofsLen ? proofs[index2] : hashes[index2-proofsLen]
-                )
-            );
-            pos++;
-        }
-
-        return hashes[totalHashes-1];
-    }
-
    /**
      * @notice Calculates a merkle root using multiple leafs at same time
      * @param leafs out of order sequence of leafs and it's siblings
      * @param proofs out of order sequence of parent proofs
-     * @param useProof indexing for using or not proofs while hashing against hashes.
+     * @param proofFlag flags for using or not proofs while hashing against hashes.
      * @return merkle root of tree
      */
     function calculateMultiMerkleRoot(
         bytes32[] memory leafs,
         bytes32[] memory proofs,
-        bool[] memory useProof
+        bool[] memory proofFlag
     )
         internal
         pure
@@ -79,20 +30,13 @@ library MerkleMultiProof {
 
         bytes32[] memory hashes = new bytes32[](totalHashes);
         uint256 hashCount = 0;
-
-        //calculate fixed hashing pairs // leaf+sibling
-        for(uint256 i = 0; i < leafsLen; i += 2){
-            hashes[hashCount] = keccak256(abi.encodePacked(leafs[i],leafs[i+1]));
-            hashCount++;
-        }
-
-        //calculate dynamic hashing pairs // hashes+proofs & hashes+hashes
+        uint leafPos = 0;
         uint hashPos = 0;
         uint proofPos = 0;
         for(uint256 i = 0; proofPos+hashPos < totalIndexes; i++){
             hashes[hashCount] = hashPair(
-                proofPos < proofsLen && useProof[i] ? proofs[proofPos++] : hashes[hashPos++],
-                hashes[hashPos++]
+                proofPos < proofsLen && proofFlag[i] ? proofs[proofPos++] : leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++],
+                leafPos < leafsLen ? leafs[leafPos++] : hashes[hashPos++]
             );
             hashCount++;
         }
@@ -109,39 +53,19 @@ library MerkleMultiProof {
      * @param root merkle root
      * @param leafs out of order sequence of leafs and it's siblings
      * @param proofs out of order sequence of parent proofs
-     * @param indexes indexes that select the hashing pairs from calldata `leafs` and `proofs` and from memory `hashes`
+     * @param proofFlag flags for using or not proofs while hashing against hashes.
      */
     function verifyMultiProof(
         bytes32 root,
         bytes32[] memory leafs,
         bytes32[] memory proofs,
-        uint256[] memory indexes
+        bool[] memory proofFlag
     )
         internal
         pure
         returns (bool)
     {
-        return calculateMultiMerkleRoot(leafs, proofs, indexes) == root;
-    }
-
-    /**
-     * @notice Check validity of multimerkle proof
-     * @param root merkle root
-     * @param leafs out of order sequence of leafs and it's siblings
-     * @param proofs out of order sequence of parent proofs
-     * @param useProof indexing for using or not proofs while hashing against hashes.
-     */
-    function verifyMultiProof(
-        bytes32 root,
-        bytes32[] memory leafs,
-        bytes32[] memory proofs,
-        bool[] memory useProof
-    )
-        internal
-        pure
-        returns (bool)
-    {
-        return calculateMultiMerkleRoot(leafs, proofs, useProof) == root;
+        return calculateMultiMerkleRoot(leafs, proofs, proofFlag) == root;
     }
 
 }

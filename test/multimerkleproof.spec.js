@@ -15,75 +15,49 @@ config({
 });
 
 contract('MultiMerkleProof', function () {
-  const merkleTreeSize = 1024;
-  const leafsSize = 25;
+  const merkleTreeSize = 4096;
+  const leafsSize = 10;
   const fuzzyProofChecks = 10;
   const elements = Array.from({length: merkleTreeSize}, (v,k) => ""+k);
   const merkleTree = new MerkleTree(elements);
-  const leafs = merkleTree.getPairs(Array.from({length: leafsSize}, (v,k) => ""+k));
-  const proof = merkleTree.getMultiProof(leafs);
-  describe('verifyMultiProofIds', function () {
+  const leafs = merkleTree.getElements(Array.from({length: leafsSize}, (v,k) => ""+k));
+
+  describe('verifyMultiProof', function () {
     it('should return true for a valid Merkle proof', async function () {
-      await MerkleMultiProofWrapper.methods.assertMultiProofIds(
-        merkleTree.getHexRoot(), 
-        leafs, 
-        proof, 
-        merkleTree.getProofIds(leafs, proof)
-      ).send()
-    });
-
-    it('should return true for a valid Merkle proof (fuzzy)', async function () {
-      for(let j = 0; j < fuzzyProofChecks; j++){
-        const leafs = merkleTree.getPairs(Array.from({length: leafsSize}, () => elements[Math.floor(Math.random()*elements.length)] ).filter((value, index, self) => self.indexOf(value) === index));
-        const proof = merkleTree.getMultiProof(leafs);
-        
-        const result = await MerkleMultiProofWrapper.methods.verifyMultiProofIds(
-          merkleTree.getHexRoot(), 
-          leafs, 
-          proof, 
-          merkleTree.getProofIds(leafs, proof)
-        ).call();
-
-        if(!result) {
-          console.log("proofChecks", j)
-          console.log("leafs", merkleTree.bufArrToHex(leafs));
-          console.log("ids", merkleTree.getProofIds(leafs, proof, true))
-        }
-        assert(result);
-      }
-
-    });
-  });
-  
-  describe('verifyMultiProofFlags', function () {
-    it('should return true for a valid Merkle proof', async function () {
-      await MerkleMultiProofWrapper.methods.assertMultiProofFlags(
+      const proof = merkleTree.getMultiProof(leafs);
+      const flags = merkleTree.getProofFlags(leafs, proof);
+      await MerkleMultiProofWrapper.methods.assertMultiProof(
         merkleTree.getHexRoot(),
         leafs, 
         proof, 
-        merkleTree.getProofFlags(leafs, proof)
+        flags,
       ).send()
+    });
+
+
+    it('should return false for an invalid Merkle proof', async function () {
+      const leafs2 = merkleTree.getElements(Array.from({length: leafsSize}, (v,k) => ""+k*2));;
+      const proof2 = merkleTree.getMultiProof(leafs2);
+      const result = await MerkleMultiProofWrapper.methods.verifyMultiProof(
+        merkleTree.getHexRoot(),
+        leafs, 
+        proof2, 
+        merkleTree.getProofFlags(leafs2, proof2)
+      ).call()
+      assert(!result);
     });
 
     
     it('should return true for a valid Merkle proof (fuzzy)', async function () {
-     
       for(let j = 0; j < fuzzyProofChecks; j++){
-        const leafs = merkleTree.getPairs(Array.from({length: leafsSize}, () => elements[Math.floor(Math.random()*elements.length)] ).filter((value, index, self) => self.indexOf(value) === index));
-        const proof = merkleTree.getMultiProof(leafs);
-        const result = await MerkleMultiProofWrapper.methods.verifyMultiProofFlags(
+        const leafsFuzzy = merkleTree.getElements(Array.from({length: leafsSize}, () => elements[Math.floor(Math.random()*elements.length)] ).filter((value, index, self) => self.indexOf(value) === index));
+        const proof = merkleTree.getMultiProof(leafsFuzzy);
+        const result = await MerkleMultiProofWrapper.methods.verifyMultiProof(
           merkleTree.getHexRoot(),
-          leafs, 
+          leafsFuzzy, 
           proof, 
-          merkleTree.getProofFlags(leafs, proof)
+          merkleTree.getProofFlags(leafsFuzzy, proof)
         ).call();
-        
-        if(!result) {
-          console.log("proofChecks", j)
-          console.log("els", merkleTree.bufArrToHex(merkleTree.elements));
-          console.log("leafs", merkleTree.bufArrToHex(leafs));
-          console.log("flags", merkleTree.getProofFlags(leafs, proof, true))
-        }
         assert(result);
       }
 

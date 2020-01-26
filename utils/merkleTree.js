@@ -13,73 +13,15 @@ class MerkleTree {
     this.layers = this.getLayers(this.elements);
   }
 
-  getProofIds(els,proofs, log=false) {
-    log && console.log("proofs", this.bufArrToHex(proofs))
-    
-    let ids = els.map((el) => Math.floor(this.bufIndexOf(el, this.elements) / 2)).filter((value, index, self) => self.indexOf(value) === index).sort((a,b) => a == b ? 0 : a > b ? 1 : -1);
-    
-    if (!ids.every((idx) => idx != -1)) {
-      throw new Error("Element does not exist in Merkle tree");
-    }
-
-    const hashOffset = proofs.length;
-    var hashCount = 0;
-    var proofCount = 0;
-
-    const tested = [];
-    const usedIds = []
-    for (let index = 1; index < this.layers.length; index++) {
-      const layer = this.layers[index];
-      log && console.log("layer", this.bufArrToHex(layer));
-      ids = ids.reduce((ids, idx) => {
-        const pairElement = this.getPairElement(idx, layer);
-        const skipped = !pairElement || tested.includes(layer[idx]);
-        if(!skipped) {
-          const proofUsed = proofs.includes(layer[idx]) || proofs.includes(pairElement);
-          if(proofUsed) {
-            if (pairElement.compare(layer[idx]) < 0){
-              usedIds.push(proofCount++);
-              usedIds.push(hashOffset+hashCount++);
-            } else {
-              usedIds.push(hashOffset+hashCount++);
-              usedIds.push(proofCount++);
-            }
-          } else {
-            let id1;
-            let id2;
-            if (pairElement.compare(layer[idx]) < 0){
-              id2 = hashOffset+hashCount++;
-              id1 = hashOffset+hashCount++;
-            } else {
-              id1 = hashOffset+hashCount++;
-              id2 = hashOffset+hashCount++;
-            }
-            usedIds.push(id1)
-            usedIds.push(id2)
-          }
-          log && console.log("pair ", proofUsed, bufferToHex(layer[idx]), bufferToHex(pairElement));
-          tested.push(layer[idx]);
-          tested.push(pairElement);
-        } else {
-          log && console.log("element skipped", bufferToHex(layer[idx]));
-        }
-        ids.push(Math.floor(idx / 2));  
-        return ids;
-      }, [])
-    }
-    return usedIds;
-  }
-
-  getProofFlags(els,proofs, log=false) {
-    log && console.log("proofs", this.bufArrToHex(proofs))
-    let ids = els.map((el) => Math.floor(this.bufIndexOf(el, this.elements) / 2)).filter((value, index, self) => self.indexOf(value) === index).sort((a,b) => a == b ? 0 : a > b ? 1 : -1);
+  getProofFlags(els, proofs) {
+    let ids = els.map((el) => this.bufIndexOf(el, this.elements)).sort((a,b) => a == b ? 0 : a > b ? 1 : -1);
     if (!ids.every((idx) => idx != -1)) {
       throw new Error("Element does not exist in Merkle tree");
     }
 
     const tested = [];
     const flags = []
-    for (let index = 1; index < this.layers.length; index++) {
+    for (let index = 0; index < this.layers.length; index++) {
       const layer = this.layers[index];
       ids = ids.reduce((ids, idx) => {
         const skipped = tested.includes(layer[idx]);
@@ -87,12 +29,9 @@ class MerkleTree {
           const pairElement = this.getPairElement(idx, layer);
           const proofUsed = proofs.includes(layer[idx]) || proofs.includes(pairElement);
           flags.push(proofUsed);
-          log && console.log("pair ", proofUsed, bufferToHex(layer[idx]), bufferToHex(pairElement));
           tested.push(layer[idx]);
           tested.push(pairElement);
-        } else {
-          log && console.log("element skipped", bufferToHex(layer[idx]));
-        }
+        } 
         ids.push(Math.floor(idx / 2));  
         return ids;
       }, [])
@@ -100,22 +39,21 @@ class MerkleTree {
     return flags;
   }
 
-  getPairs(els) {
+  getElements(els) {
     let ids = els.map((el) => this.bufIndexOf(el, this.elements));
     if (!ids.every((idx) => idx != -1)) {
       throw new Error("Element does not exist in Merkle tree");
     }
     
-    const pairs = [];
+    const elsH = [];
     for (let j = 0; j < ids.length; j++) {
-      pairs.push(this.layers[0][ids[j]]);
-      pairs.push(this.getPairElement(ids[j], this.layers[0]));  
+      elsH.push(this.layers[0][ids[j]]);
     }
-    return this.bufDedup(pairs).sort(Buffer.compare);
+    return this.bufDedup(elsH).sort(Buffer.compare);
   }
 
-  getMultiProof(els, log=false) {
-    let ids = els.map((el) => Math.floor(this.bufIndexOf(el, this.elements) / 2)).filter((value, index, self) => self.indexOf(value) === index).sort((a,b) => a == b ? 0 : a > b ? 1 : -1);
+  getMultiProof(els) {
+    let ids = els.map((el) => this.bufIndexOf(el, this.elements)).sort((a,b) => a == b ? 0 : a > b ? 1 : -1);
     if (!ids.every((idx) => idx != -1)) {
       throw new Error("Element does not exist in Merkle tree");
     }
@@ -124,8 +62,7 @@ class MerkleTree {
     const proof = [];
     var nextIds = [];
 
-
-    for (let index = 1; index < this.layers.length; index++) {
+    for (let index = 0; index < this.layers.length; index++) {
       const layer = this.layers[index];
       for (let j = 0; j < ids.length; j++) {
         const idx = ids[j];
@@ -139,10 +76,7 @@ class MerkleTree {
       ids = nextIds.filter((value, index, self) => self.indexOf(value) === index);
       nextIds = [];
     }
-
-    log && console.log("proof", this.bufArrToHex(proof));
-    log && console.log("hashes", this.bufArrToHex(hashes));
-    return proof.filter((value,index, self) => !hashes.includes(value));
+    return proof.filter((value) => !hashes.includes(value));
   }
 
   getHexMultiProof(els) {

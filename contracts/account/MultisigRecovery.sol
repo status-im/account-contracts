@@ -145,18 +145,18 @@ contract MultisigRecovery {
      * @param _merkleRoot Revealed merkle root
      * @param _calldest Address will be called
      * @param _calldata Data to be sent
-     * @param _leafHashes Pre approved leafhashes and it's weights as siblings ordered by descending weight
+     * @param _leafData Pre approved leafhashes and it's weights as siblings ordered by descending weight
      * @param _proofs parents proofs
-     * @param _indexes indexes that select the hashing pairs from calldata `_leafHashes` and `_proofs` and from memory `hashes`
+     * @param _proofFlags indexes that select the hashing pairs from calldata `_leafHashes` and `_proofs` and from memory `hashes`
      */
     function execute(
         bytes32 _executeHash,
         bytes32 _merkleRoot,
         address _calldest,
         bytes calldata _calldata,
-        bytes32[] calldata _leafHashes,
+        bytes32[] calldata _leafData,
         bytes32[] calldata _proofs,
-        uint256[] calldata _indexes
+        bool[] calldata _proofFlags
     )
         external
     {
@@ -172,9 +172,11 @@ contract MultisigRecovery {
             abi.encodePacked(partialReveal, _calldest, _calldata)
         );
         uint256 weight = 0;
-        for(uint256 i = 0; weight < THRESHOLD; i += 2){
-            bytes32 leafHash = _leafHashes[i];
-            uint256 leafWeight = uint256(_leafHashes[i+1]);
+        bytes32[] memory leafs = new bytes32[](_proofs.length/2);
+        for(uint256 i = 0; weight < THRESHOLD; i++){
+            bytes32 leafHash = _leafData[i*2];
+            uint256 leafWeight = uint256(_leafData[(i*2)+1]);
+            leafs[i] = keccak256(abi.encodePacked(leafHash,leafWeight));
             bytes32 approveHash = keccak256(
                 abi.encodePacked(
                     leafHash,
@@ -184,7 +186,7 @@ contract MultisigRecovery {
             weight += leafWeight;
             delete approved[leafHash][approveHash];
         }
-        require(MerkleMultiProof.verifyMultiProof(_merkleRoot, _leafHashes, _proofs, _indexes), "Invalid leafHashes");
+        require(MerkleMultiProof.verifyMultiProof(_merkleRoot, leafs, _proofs, _proofFlags), "Invalid leafHashes");
         nonce[_calldest]++;
         delete active[_calldest];
         delete pending[_calldest];
@@ -234,7 +236,7 @@ contract MultisigRecovery {
     function _getChainID() internal pure returns (uint256) {
         uint256 id;
         assembly {
-            id := chainid()
+            //id := chainid()
         }
         return id;
     }

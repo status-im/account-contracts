@@ -1,10 +1,9 @@
 pragma solidity >=0.5.0 <0.7.0;
 import "../cryptography/MerkleMultiProof.sol";
-import "../cryptography/MerkleMultiProof2.sol";
 
 contract MerkleMultiProofWrapper {
 
-    function calculateMultiMerkleRoot(
+    function calculateMultiMerkleRootIds(
         bytes32[] memory leafs,
         bytes32[] memory proofs,
         uint256[] memory indexes
@@ -16,7 +15,7 @@ contract MerkleMultiProofWrapper {
         return MerkleMultiProof.calculateMultiMerkleRoot(leafs, proofs, indexes);
     }
 
-    function calculateMultiMerkleRoot2(
+    function calculateMultiMerkleRootFlags(
         bytes32[] memory leafs,
         bytes32[] memory proofs,
         bool[] memory useProof
@@ -28,7 +27,7 @@ contract MerkleMultiProofWrapper {
         return MerkleMultiProof.calculateMultiMerkleRoot(leafs, proofs, useProof);
     }
 
-    function verifyMultiProof(
+    function verifyMultiProofIds(
         bytes32 root,
         bytes32[] memory leafs,
         bytes32[] memory proofs,
@@ -41,7 +40,7 @@ contract MerkleMultiProofWrapper {
         return MerkleMultiProof.verifyMultiProof(root, leafs, proofs, indexes);
     }
 
-    function verifyMultiProof2(
+    function verifyMultiProofFlags(
         bytes32 root,
         bytes32[] memory leafs,
         bytes32[] memory proofs,
@@ -52,5 +51,30 @@ contract MerkleMultiProofWrapper {
         returns (bool)
     {
         return MerkleMultiProof.verifyMultiProof(root, leafs, proofs, useProof);
+    }
+
+
+    function assertMultiProofIds(
+        bytes32 root,
+        bytes32[] memory leafs,
+        bytes32[] memory proofs,
+        uint256[] memory indexes
+    )
+        public
+        pure
+    {
+        assert(MerkleMultiProof.verifyMultiProof(root, leafs, proofs, indexes));
+    }
+
+    function assertMultiProofFlags(
+        bytes32 root,
+        bytes32[] memory leafs,
+        bytes32[] memory proofs,
+        bool[] memory useProof
+    )
+        public
+        pure
+    {
+        assert(MerkleMultiProof.verifyMultiProof(root, leafs, proofs, useProof));
     }
 }

@@ -41,7 +41,19 @@ library MerkleMultiProof {
     }
 
     function hashPair(bytes32 a, bytes32 b) private pure returns(bytes32){
-        return keccak256(a < b ? abi.encodePacked(a, b) : abi.encodePacked(b, a));
+        return a < b ? hash_node(a, b) : hash_node(b, a);
+    }
+
+    function hash_node(bytes32 left, bytes32 right)
+        private pure
+        returns (bytes32 hash)
+    {
+        assembly {
+            mstore(0x00, left)
+            mstore(0x20, right)
+            hash := keccak256(0x00, 0x40)
+        }
+        return hash;
     }
 
     /**

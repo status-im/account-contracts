@@ -1,7 +1,22 @@
 const { MerkleTree } = require('../utils/merkleTree.js');
-const { keccak256, bufferToHex } = require('ethereumjs-util');
-
 const MerkleMultiProofWrapper = require('Embark/contracts/MerkleMultiProofWrapper');
+
+const merkleTreeSize = 4096;
+const leafsSize = 10;
+const fuzzyProofChecks = 10;
+
+const elementsA = Array.from({length: merkleTreeSize}, (v,k) => ""+k);
+const merkleTreeA = new MerkleTree(elementsA);
+const leafsA = merkleTreeA.getElements(Array.from({length: leafsSize}, (v,k) => ""+k));
+const proofA = merkleTreeA.getMultiProof(leafsA);
+const flagsA = merkleTreeA.getProofFlags(leafsA, proofA);
+
+const elementsB = Array.from({length: merkleTreeSize}, (v,k) => ""+k*2);
+const merkleTreeB = new MerkleTree(elementsB);
+const leafsB = merkleTreeB.getElements(Array.from({length: leafsSize}, (v,k) => ""+k*2))
+const proofB = merkleTreeB.getMultiProof(leafsB);
+const flagsB = merkleTreeB.getProofFlags(leafsB, proofB);
+
 config({
   contracts: {
     deploy: {
@@ -15,79 +30,124 @@ config({
 });
 
 contract('MultiMerkleProof', function () {
-  const merkleTreeSize = 4096;
-  const leafsSize = 10;
-  const fuzzyProofChecks = 10;
-  const elements = Array.from({length: merkleTreeSize}, (v,k) => ""+k);
-  const merkleTree = new MerkleTree(elements);
-  const leafs = merkleTree.getElements(Array.from({length: leafsSize}, (v,k) => ""+k));
-
-  describe('verifyMultiProof', function () {
-    const proof = merkleTree.getMultiProof(leafs);
-    var flags = merkleTree.getProofFlags(leafs, proof);
-    it('deploy cost', async function () {
-      await MerkleMultiProofWrapper.methods.foo().send()
+  describe('calculateMultiMerkleRoot', function () {
+    it('display cost of deploy MerkleMultiProofWrapper', async function () {
+      await MerkleMultiProofWrapper.methods.foo().send();
     });
 
-    it('cost of calldata (proofs + leafs + flags)', async function () {
-
-      console.log("leafs length:", leafs.length)
-      console.log("proofs length:", proof.length)
-      console.log("flags length:", flags.length)
-      console.log("flags:", flags.reduce((ret,v)=> ret+(v ? "1":"0"),""));
-      await MerkleMultiProofWrapper.methods.assertMultiProofCost(
-        merkleTree.getHexRoot(),
-        leafs, 
-        proof,
-        flags
-      ).send()
-    });
-
-    it('cost of calldata (flags)', async function () {
-      await MerkleMultiProofWrapper.methods.assertMultiProofCost(
-        flags
-      ).send()
-    });
-
-
-    it('cost of verify', async function () {
-      const proof = merkleTree.getMultiProof(leafs);
-
-      await MerkleMultiProofWrapper.methods.assertMultiProof(
-        merkleTree.getHexRoot(),
-        leafs, 
-        proof, 
-        flags,
-      ).send()
-    });
-
-    it('should return false for an invalid Merkle proof', async function () {
-      const leafs2 = merkleTree.getElements(Array.from({length: leafsSize}, (v,k) => ""+k*2));;
-      const proof2 = merkleTree.getMultiProof(leafs2);
-      const result = await MerkleMultiProofWrapper.methods.verifyMultiProof(
-        merkleTree.getHexRoot(),
-        leafs, 
-        proof2, 
-        merkleTree.getProofFlags(leafs2, proof2)
+    it('calculate merkle root from leafs, proofs and flags', async function () {
+      const result = await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+        leafsA, 
+        proofA, 
+        flagsA
       ).call()
-      assert(!result);
+      const result2 = await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+        leafsB, 
+        proofB, 
+        flagsB
+      ).call()
+      assert(result == merkleTreeA.getHexRoot());
+      assert(result2 == merkleTreeB.getHexRoot());
     });
     
-    it('should return true for a valid Merkle proof (fuzzy)', async function () {
-      for(let j = 0; j < fuzzyProofChecks; j++){
-        const leafsFuzzy = merkleTree.getElements(Array.from({length: leafsSize}, () => elements[Math.floor(Math.random()*elements.length)] ).filter((value, index, self) => self.indexOf(value) === index));
-        const proof = merkleTree.getMultiProof(leafsFuzzy);
-        const flags = merkleTree.getProofFlags(leafsFuzzy, proof);
+    it('calculate wrong merkle root from wrong proofs and flags', async function () {
+      var invalid = false;
+      try {
+        invalid = merkleTreeA.getHexRoot() != await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+          leafsA, 
+          proofB, 
+          flagsB
+        ).call()
+      } catch(e) {
+        invalid = true;
+      }
+      assert(invalid);
 
-        const result = await MerkleMultiProofWrapper.methods.verifyMultiProof(
-          merkleTree.getHexRoot(),
-          leafsFuzzy, 
-          proof, 
-          flags
+      try {
+        invalid = merkleTreeA.getHexRoot() != await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+          leafsA, 
+          proofB, 
+          flagsA
+        ).call()
+      } catch(e) {
+        invalid = true;
+      }
+      assert(invalid);
+      
+      try {
+        invalid = merkleTreeB.getHexRoot() != await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+          leafsB, 
+          proofA, 
+          flagsB
         ).call();
-        assert(result);
+      } catch(e) {
+        invalid = true;
       }
 
+      assert(invalid);
+      try {
+        invalid = merkleTreeB.getHexRoot() != await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+          leafsB, 
+          proofA, 
+          flagsA
+        ).call() 
+      } catch(e) {
+        invalid = true;
+      }
+      assert(invalid);
+    });
+
+    it('calculate merkle root from leafs, proofs and flags (fuzzy)', async function () {
+      for(let j = 0; j < fuzzyProofChecks; j++){
+        const leafsFuzzy = merkleTreeA.getElements(
+          Array.from({length: leafsSize}, () => elementsA[Math.floor(Math.random()*elementsA.length)] ).filter((value, index, self) => self.indexOf(value) === index)
+        );
+        const proofFuzzy = merkleTreeA.getMultiProof(leafsFuzzy);
+        const flagsFuzzy = merkleTreeA.getProofFlags(leafsFuzzy, proofFuzzy);
+        const result = await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+          leafsFuzzy, 
+          proofFuzzy, 
+          flagsFuzzy
+        ).call();
+        assert(result == merkleTreeA.getHexRoot());
+      }
+    });
+
+    it('return wrong root for invalid Merkle proof (fuzzy)', async function () {
+      for(let j = 0; j < fuzzyProofChecks; j++){
+        const leafsFuzzy = merkleTreeB.getElements(
+          Array.from({length: leafsSize}, () => elementsB[Math.floor(Math.random()*elementsB.length)] ).filter((value, index, self) => self.indexOf(value) === index)
+        );
+        const proofFuzzy = merkleTreeB.getMultiProof(leafsFuzzy);
+        const flagsFuzzy = merkleTreeB.getProofFlags(leafsFuzzy, proofFuzzy);
+        var invalid = false;
+        try {
+          invalid = merkleTreeA.getHexRoot() != await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+            leafsFuzzy, 
+            proofFuzzy, 
+            flagsFuzzy
+          ).call();
+        } catch(e) {
+          invalid = true;
+        }
+        assert(invalid);
+      }
+    });
+
+    it(`cost of calculate Tree A root for ${leafsA.length} leafs using ${proofA.length} proofs and ${flagsA.length} flags`, async function () {
+      await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+        leafsA, 
+        proofA, 
+        flagsA,
+      ).send()
+    });
+
+    it(`cost of calculate Tree B root for ${leafsB.length} leafs using ${proofB.length} proofs and ${flagsB.length} flags`, async function () {
+      await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+        leafsB, 
+        proofB, 
+        flagsB,
+      ).send()
     });
   });
 });

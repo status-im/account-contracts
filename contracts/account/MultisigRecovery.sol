@@ -23,7 +23,7 @@ contract MultisigRecovery {
     //just used offchain
     mapping(address => uint256) public nonce;
     //flag approvals
-    mapping(bytes32 => mapping(bytes32=>bool)) public approved;
+    mapping(bytes32 => mapping(bytes32 => bool)) public approved;
     //storage for pending setup
     mapping(address => RecoverySet) public pending;
     //storage for active recovery
@@ -49,15 +49,6 @@ contract MultisigRecovery {
         public
     {
         ens = _ens;
-    }
-    /**
-     * @notice Cancels a pending setup to change the recovery parameters
-     */
-    function cancelSetup()
-        external
-    {
-        delete pending[msg.sender];
-        emit SetupRequested(msg.sender, 0);
     }
 
     /**
@@ -100,6 +91,16 @@ contract MultisigRecovery {
         emit Activated(_who);
     }
 
+    /**
+     * @notice Cancels a pending setup to change the recovery parameters
+     */
+    function cancelSetup()
+        external
+    {
+        delete pending[msg.sender];
+        emit SetupRequested(msg.sender, 0);
+    }
+    
     /**
      * @notice Approves a recovery. This method is important for when the address is an contract and dont implements EIP1271.
      * @param _approveHash Hash of the recovery call
@@ -214,7 +215,7 @@ contract MultisigRecovery {
             ),
             "Invalid ENS entry"
         );
-        bytes32 leaf = keccak256(abi.encodePacked(isENS, isENS ? _ensNode : bytes32(uint256(_signer))));
+        bytes32 leaf = keccak256(isENS ? abi.encodePacked(byte(0x01), _ensNode) : abi.encodePacked(byte(0x00), bytes32(uint256(_signer))));
         approved[leaf][_approveHash] = true;
         emit Approved(_approveHash, leaf);
     }

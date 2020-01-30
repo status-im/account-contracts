@@ -30,6 +30,7 @@ config({
 });
 
 contract('MultiMerkleProof', function () {
+   
   describe('calculateMultiMerkleRoot', function () {
     it('display cost of deploy MerkleMultiProofWrapper', async function () {
       await MerkleMultiProofWrapper.methods.foo().send();
@@ -96,8 +97,25 @@ contract('MultiMerkleProof', function () {
       }
       assert(invalid);
     });
+  
+    it(`cost of calculate Tree A root for ${leafsA.length} leafs using ${proofA.length} proofs and ${flagsA.length} flags`, async function () {
+      await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+        leafsA, 
+        proofA, 
+        flagsA,
+      ).send()
+    });
 
-    it('calculate merkle root from leafs, proofs and flags (fuzzy)', async function () {
+    it(`cost of calculate Tree B root for ${leafsB.length} leafs using ${proofB.length} proofs and ${flagsB.length} flags`, async function () {
+      await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
+        leafsB, 
+        proofB, 
+        flagsB,
+      ).send()
+    });
+
+    it(`calculate ${fuzzyProofChecks} merkle root from leafs, proofs and flags (fuzzy)`, async function () {
+      this.timeout(500*fuzzyProofChecks);
       for(let j = 0; j < fuzzyProofChecks; j++){
         const leafsFuzzy = merkleTreeA.getElements(
           Array.from({length: leafsSize}, () => elementsA[Math.floor(Math.random()*elementsA.length)] ).filter((value, index, self) => self.indexOf(value) === index)
@@ -113,7 +131,8 @@ contract('MultiMerkleProof', function () {
       }
     });
 
-    it('return wrong root for invalid Merkle proof (fuzzy)', async function () {
+    it(`calculate ${fuzzyProofChecks} wrong merkle root from wrong proofs and flags (fuzzy)`, async function () {
+      this.timeout(500*fuzzyProofChecks);
       for(let j = 0; j < fuzzyProofChecks; j++){
         const leafsFuzzy = merkleTreeB.getElements(
           Array.from({length: leafsSize}, () => elementsB[Math.floor(Math.random()*elementsB.length)] ).filter((value, index, self) => self.indexOf(value) === index)
@@ -132,22 +151,6 @@ contract('MultiMerkleProof', function () {
         }
         assert(invalid);
       }
-    });
-
-    it(`cost of calculate Tree A root for ${leafsA.length} leafs using ${proofA.length} proofs and ${flagsA.length} flags`, async function () {
-      await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
-        leafsA, 
-        proofA, 
-        flagsA,
-      ).send()
-    });
-
-    it(`cost of calculate Tree B root for ${leafsB.length} leafs using ${proofB.length} proofs and ${flagsB.length} flags`, async function () {
-      await MerkleMultiProofWrapper.methods.calculateMultiMerkleRoot(
-        leafsB, 
-        proofB, 
-        flagsB,
-      ).send()
     });
   });
 });

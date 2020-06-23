@@ -109,7 +109,7 @@ contract GasRelay {
     function _getChainID() internal pure returns (uint256) {
         uint256 id = 1;
         assembly {
-            id := chainid()
+           // id := chainid()
         }
         return id;
     }

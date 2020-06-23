@@ -112,8 +112,9 @@ contract MiniMeToken is Controlled {
         uint8 _decimalUnits,
         string memory _tokenSymbol,
         bool _transfersEnabled
-    ) 
+    )
         public
+        Controlled(msg.sender)
     {
         tokenFactory = MiniMeTokenFactory(_tokenFactory);
         name = _tokenName;                                 // Set the name

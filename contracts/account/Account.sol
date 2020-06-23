@@ -8,7 +8,7 @@ import "./Signer.sol";
 /**
  * @notice Abstract account logic. Tracks nonce and fire events for the internal functions of call, approveAndCall, create and create2. Default function is payable with no events/logic.
  */
-contract Account is Caller, ERC20Caller, Creator, Signer {
+abstract contract Account is Caller, ERC20Caller, Creator, Signer {
 
     event Executed(uint256 nonce, bool success, bytes returndata);
     event Deployed(uint256 nonce, bool success, address returnaddress);
@@ -16,16 +16,9 @@ contract Account is Caller, ERC20Caller, Creator, Signer {
     uint256 public nonce;
 
     /**
-     * @dev Does nothing, only to mark as abstract (internal)
-     */
-    constructor() internal {
-
-    }
-
-    /**
      * @dev Does nothing, accepts ETH value (payable)
      */
-    function() external payable {
+    fallback() external payable {
 
     }
 
@@ -146,8 +139,8 @@ contract Account is Caller, ERC20Caller, Creator, Signer {
     {
         uint256 _nonce = nonce++; // Important: Must be incremented always BEFORE deploy
         createdContract = super._create2(_value, _code, _salt);
-        bool success = isContract(createdContract);
-        emit Deployed(_nonce, success, createdContract);
+        require(isContract(createdContract), ERR_CREATE_FAILED);
+        emit Deployed(_nonce, true, createdContract);
     }
 
     /**
@@ -196,14 +189,4 @@ contract Account is Caller, ERC20Caller, Creator, Signer {
         emit Executed(_nonce, success, returndata);
     }
 
-    /**
-     * @dev Internal function to determine if an address is a contract
-     * @param _target The address being queried
-     * @return True if `_addr` is a contract
-     */
-    function isContract(address _target) internal view returns(bool result) {
-        assembly {
-            result := gt(extcodesize(_target), 0)
-        }
-    }
 }

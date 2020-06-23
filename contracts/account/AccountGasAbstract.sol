@@ -46,7 +46,7 @@ contract AccountGasAbstract is Account, GasRelay {
                 startGas,
                 _gasPrice,
                 _gasToken,
-                _gasRelayer
+                _gasRelayer == address(0) ? block.coinbase : _gasRelayer
             );
         }
     }
@@ -56,6 +56,7 @@ contract AccountGasAbstract is Account, GasRelay {
         uint256 _gasPrice,
         uint256 _gasLimit,
         address _gasToken,
+        address payable _gasRelay,
         bytes calldata _signature
     )
         external
@@ -64,38 +65,13 @@ contract AccountGasAbstract is Account, GasRelay {
             _gasPrice,
             _gasLimit,
             _gasToken,
-            msg.sender,
+            _gasRelay,
             _signature
         )
     {
         address(this).call.gas(_gasLimit)(_execData);
     }
 
-    function canExecute(
-        bytes memory _execData,
-        uint256 _gasPrice,
-        uint256 _gasLimit,
-        address _gasToken,
-        address _gasRelayer,
-        bytes memory _signature
-    )
-        public
-        view
-        returns (bool)
-    {
-        return isValidSignature(
-            executeGasRelayMsg(
-                nonce,
-                _execData,
-                _gasPrice,
-                _gasLimit,
-                _gasToken,
-                _gasRelayer
-            ),
-            _signature
-        ) == MAGICVALUE;
-    }
-    
     function lastNonce() public view returns (uint256) {
         return nonce;
     }

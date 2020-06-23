@@ -1,6 +1,8 @@
 pragma solidity >=0.5.0 <0.7.0;
 
 contract Controlled {
+    string internal constant ERR_BAD_PARAMETER = "Bad parameter";
+    string internal constant ERR_UNAUTHORIZED = "Unauthorized";
     event NewController(address controller);
     /// @notice The address of the controller is the only address that can call
     ///  a function with this modifier
@@ -11,8 +13,9 @@ contract Controlled {
 
     address payable public controller;
 
-    constructor() internal {
-        controller = msg.sender;
+    constructor(address payable _initController) internal {
+        require(_initController != address(0), ERR_BAD_PARAMETER);
+        controller = _initController;
     }
 
     /// @notice Changes the controller of the contract

@@ -26,7 +26,7 @@ contract PaymentNetworkActor is Controlled {
         uint256 maxTxValue;
     }
 
-    constructor(Actor _actor, PaymentNetwork _paymentNetwork, address _keycard, uint256 _maxTxValue) public {
+    constructor(Actor _actor, PaymentNetwork _paymentNetwork, address _keycard, uint256 _maxTxValue) public Controller(msg.sender) {
         actor = _actor;
         keycard = _keycard;
         settings.maxTxValue = _maxTxValue;

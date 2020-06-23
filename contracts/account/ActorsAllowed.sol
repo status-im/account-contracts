@@ -7,7 +7,7 @@ import "./Actor.sol";
 /**
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  */
-contract ActorsAllowed is Actor, Controlled {
+abstract contract ActorsAllowed is Actor, Controlled {
 
     address[] public actors;
     mapping(address => bool) public isActor;

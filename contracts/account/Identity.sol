@@ -1,104 +1,40 @@
 pragma solidity >=0.5.0 <0.7.0;
 
-import "./UserAccountInterface.sol";
-import "./AccountGasAbstract.sol";
+import "./Account.sol";
+import "./ERC725.sol";
 import "../cryptography/ECDSA.sol";
+import "../common/Controlled.sol";
 
 /**
  * @author Ricardo Guilherme Schmidt (Status Research & Development GmbH)
  * @notice Defines an account which can be setup by a owner address (multisig contract), recovered by a recover address (a sort of secret multisig contract), and execute actions from a list of addresses (authorized contracts, extensions, etc)
  */
-contract UserAccount is UserAccountInterface, AccountGasAbstract {
+contract Identity is ERC725, Account, Controlled {
     string internal constant ERR_BAD_PARAMETER = "Bad parameter";
     string internal constant ERR_UNAUTHORIZED = "Unauthorized";
-    string internal constant ERR_CREATE_FAILED = "Contract creation failed";
 
-    address public owner;
-    address public recovery;
-    address public actor;
 
-    constructor(address _owner, address _actor, address _recovery) public {
-        require(_owner != address(0), ERR_BAD_PARAMETER);
-        owner = _owner;
-        actor = _actor;
-        recovery = _recovery;
+    mapping(bytes32 => bytes) store;
+
+    constructor(address _controller) public Controlled(_controller) {
+
     }
 
     /**
-     * Allow only calls from itself or directly from owner
+     * @notice Add public data to account. Can only be called by management. ERC725 interface.
+     * @param _key identifier
+     * @param _value data
      */
-    modifier management {
-        require(msg.sender == address(this) || msg.sender == address(owner), ERR_UNAUTHORIZED);
-        _;
-    }
-
-    /**
-     * @dev Allow calls only from actor to external addresses, or any call from owner
-     */
-    modifier authorizedAction(address _to) {
-        require(
-            msg.sender == address(this) || ( // self is always authorized
-                msg.sender == actor && //actor is authorized
-                _to != address(this) //only for external address
-            ) || msg.sender == address(owner), //owner is always authorized
-            ERR_UNAUTHORIZED);
-        _;
-    }
-
-    /**
-     * @notice Defines recovery address. Can only be called by management when no recovery is set, or by recovery.
-     * @param _recovery address of recovery contract
-     */
-    function setRecovery(address _recovery)
+    function setData(bytes32 _key, bytes calldata _value)
         external
+        onlyController
     {
-        require(
-            (
-                recovery == address(0) && (msg.sender == address(this) || msg.sender == owner)
-            ) || msg.sender == recovery,
-            ERR_UNAUTHORIZED
-        );
-        recovery = _recovery;
+        store[_key] = _value;
+        emit DataChanged(_key, _value);
     }
 
     /**
-     * @notice Defines the new owner and disable actor. Can only be called by recovery.
-     * @param newOwner an ERC1271 contract or externally owned account
-     */
-    function recover(address newOwner)
-        external
-    {
-        require(msg.sender == recovery, ERR_UNAUTHORIZED);
-        require(newOwner != address(0), ERR_BAD_PARAMETER);
-        owner = newOwner;
-        actor = address(0);
-    }
-
-    /**
-     * @notice Changes actor contract
-     * @param _actor Contract which can call actions from this contract
-     */
-    function setActor(address _actor)
-        external
-        management
-    {
-        actor = _actor;
-    }
-
-    /**
-     * @notice Replace owner address.
-     * @param newOwner address of externally owned account or ERC1271 contract to control this account
-     */
-    function changeOwner(address newOwner)
-        external
-        management
-    {
-        require(newOwner != address(0), ERR_BAD_PARAMETER);
-        owner = newOwner;
-    }
-
-    /**
-     * @notice
+     * @notice ERC725 universal execute interface
      * @param _execData data to be executed in this contract
      * @return success status and return data
      */
@@ -106,10 +42,10 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         bytes calldata _execData
     )
         external
-        management
+        onlyController
         returns (bool success, bytes memory returndata)
     {
-        (success, returndata) = address(this).call(_execData);
+        (success, returndata) = address(this).delegatecall(_execData);
     }
 
     /**
@@ -125,7 +61,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         bytes calldata _data
     )
         external
-        authorizedAction(_to)
+        onlyController
         returns(bool success, bytes memory returndata)
     {
         (success, returndata) = _call(_to, _value, _data);
@@ -146,7 +82,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         bytes calldata _data
     )
         external
-        authorizedAction(_to)
+        onlyController
         returns(bool success, bytes memory returndata)
     {
         (success, returndata) = _approveAndCall(_baseToken, _to, _value, _data);
@@ -163,7 +99,7 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         bytes calldata _code
     )
         external
-        authorizedAction(address(0))
+        onlyController
         returns(address createdContract)
     {
         (createdContract) = _create(_value, _code);
@@ -183,11 +119,23 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         bytes32 _salt
     )
         external
-        authorizedAction(address(0))
+        onlyController
         returns(address createdContract)
     {
         (createdContract) = _create2(_value, _code, _salt);
-        require(isContract(createdContract), ERR_CREATE_FAILED);
+    }
+
+    /**
+     * @notice Reads data set in this account. ERC725 interface.
+     * @param _key identifier
+     * @return data
+     */
+    function getData(bytes32 _key)
+        external
+        view
+        returns (bytes memory _value)
+    {
+        return store[_key];
     }
 
     /**
@@ -203,10 +151,10 @@ contract UserAccount is UserAccountInterface, AccountGasAbstract {
         view
         returns (bytes4 magicValue)
     {
-        if(isContract(owner)){
-            return Signer(owner).isValidSignature(_data, _signature);
+        if(isContract(controller)){
+            return Signer(controller).isValidSignature(_data, _signature);
         } else {
-            return owner == ECDSA.recover(ECDSA.toERC191SignedMessage(address(this), _data), _signature) ? MAGICVALUE : bytes4(0xffffffff);
+            return controller == ECDSA.recover(ECDSA.toERC191SignedMessage(address(this), _data), _signature) ? MAGICVALUE : bytes4(0xffffffff);
         }
     }
 }

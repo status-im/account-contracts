@@ -22,12 +22,15 @@
   },
   "homepage": "https://github.com/status-im/account-contracts#readme",
   "devDependencies": {
-    "embark": "^5.1.0-nightly.6",
+    "embark": "^5.1.2-nightly.0",
     "react": "16.7.0",
     "react-bootstrap": "0.32.4",
     "react-dom": "16.7.0"
   },
   "dependencies": {
-    "bootstrap": "^4.3.1"
+    "bootstrap": "^4.3.1",
+    "embarkjs": "^5.1.0",
+    "embarkjs-ens": "^5.1.0",
+    "embarkjs-web3": "^5.1.0"
   }
 }

@@ -70,6 +70,7 @@ contract MultisigRecovery {
             active[who] = newSet;
             emit Activated(who);
         } else {
+            require(pending[who].timestamp == 0 || pending[who].timestamp + active[who].setupDelay < block.timestamp, "Waiting activation");
             pending[who] = newSet;
             emit SetupRequested(who, block.timestamp + active[who].setupDelay);
         }
@@ -85,7 +86,7 @@ contract MultisigRecovery {
     {
         RecoverySet storage pendingUser = pending[_who];
         require(pendingUser.timestamp > 0, "No pending setup");
-        require(pendingUser.timestamp + active[_who].setupDelay <= block.timestamp, "Waiting delay");
+        require(pendingUser.timestamp + active[_who].setupDelay > block.timestamp, "Waiting delay");
         active[_who] = pendingUser;
         delete pending[_who];
         emit Activated(_who);
@@ -97,6 +98,9 @@ contract MultisigRecovery {
     function cancelSetup()
         external
     {
+        RecoverySet storage pendingUser = pending[msg.sender];
+        require(pendingUser.timestamp > 0, "No pending setup");
+        require(pendingUser.timestamp + active[msg.sender].setupDelay < block.timestamp, "Waiting activation");
         delete pending[msg.sender];
         emit SetupRequested(msg.sender, 0);
     }

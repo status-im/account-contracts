@@ -4,7 +4,7 @@ pragma solidity >=0.5.0 <0.7.0;
  * @notice wrapper for _create and _create2
  */
 contract Creator {
-
+    string internal constant ERR_CREATE_FAILED = "Contract creation failed";
     /**
      * @dev abstract contract
      */
@@ -63,4 +63,14 @@ contract Creator {
         _contractAddress = address(bytes20(_data << 96));
     }
 
+    /**
+     * @dev Internal function to determine if an address is a contract
+     * @param _target The address being queried
+     * @return True if `_addr` is a contract
+     */
+    function isContract(address _target) internal view returns(bool result) {
+        assembly {
+            result := gt(extcodesize(_target), 0)
+        }
+    }
 }
